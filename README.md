@@ -8,41 +8,11 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 
 ## Features
 
-### Lineage Graph
-Interactive DAG visualization powered by [Cytoscape.js](https://js.cytoscape.org/) — see upstream and downstream dependencies for any model at a glance.
-
-- Click nodes to navigate to source files
-- Expand boundary nodes to explore deeper
-- Configurable depth, layout direction, and edge style
-- Shows models, sources, seeds, snapshots, exposures, and tests
-- Auto-updates when manifest changes
-- Adapts to light/dark IDE themes
-
-### Code Intelligence
-- **Autocompletion** — `ref('`, `source('`, `macro('` suggestions with descriptions
-- **Go to Definition** — Ctrl/Cmd+Click on `ref()` / `source()` to jump to the model file
-- **Documentation on Hover** — see column info, materialization, tags, and descriptions
-- **Annotations** — unresolved `ref()` / `source()` calls highlighted as warnings
-- Works in `.sql`, `.jinja`, and `.jinja2` files
-
-### Runner
-Run dbt commands directly from the IDE:
-
-- **Run** / **Test** / **Compile** the current model with one click
-- **Full Refresh** checkbox for incremental models
-- **Preview** — execute `dbt show` on any model or selected SQL (`Cmd+Shift+R`)
-- **Docs Generate** — rebuild documentation
-- **Target selector** — switch between dbt targets (dev, prod, etc.)
-- **Stop** button to cancel running commands
-- Streaming output log with process status
-- Native OS notifications when commands finish (configurable)
-
-### Copy & Paste
-- **Copy for Target DB** (`Cmd+Shift+C`) — copies SQL with `ref()` / `source()` replaced by `database.schema.table`
-- **Paste as dbt Refs** (`Cmd+Shift+V`) — pastes SQL with table names replaced by `ref()` / `source()` calls
-
-### Docs Viewer
-Browse model documentation in a built-in panel — columns, descriptions, tags, materialization, and dependencies.
+- **Lineage graph** — interactive DAG of your dbt models with click-to-explore navigation. Single click previews a model and its dependencies; double click refocuses the graph and opens the file.
+- **Docs sidebar** — columns, tests, SQL, and metadata for the selected model, side-by-side with the graph.
+- **Code intelligence** — autocomplete and go-to-definition for `ref()`, `source()`, and `macro()`; hover for column info; warnings on unresolved references. Works in `.sql` and Jinja files.
+- **Runner** — run, test, compile, preview, and regenerate docs without leaving the IDE. Target selector and live output log.
+- **Copy & paste helpers** — copy SQL with refs resolved to `db.schema.table`, or paste SQL with table names converted back into `ref()` / `source()` calls.
 
 ---
 
@@ -75,10 +45,9 @@ Browse model documentation in a built-in panel — columns, descriptions, tags, 
 | Project root override | Manual dbt project root | auto-detect |
 | Active target | Target from profiles.yml | default target |
 | Upstream/Downstream depth | Lineage graph depth | 5 / 5 |
-| Edge style | Lineage edge rendering | bezier |
+| Edge style | Lineage edge rendering | round-taxi |
 | Layout direction | Graph orientation | Left → Right |
 | Preview row limit | Max rows for `dbt show` | 10 |
-| Show test nodes | Display tests in lineage | off |
 | Show exposures | Display exposures in lineage | on |
 | System notifications | Native OS notifications | on |
 
@@ -90,7 +59,6 @@ Browse model documentation in a built-in panel — columns, descriptions, tags, 
 |--------|-------|---------------|
 | Copy for Target DB | `Cmd+Shift+C` | `Ctrl+Shift+C` |
 | Paste as dbt Refs | `Cmd+Shift+V` | `Ctrl+Shift+V` |
-| dbt Preview | `Cmd+Shift+R` | `Ctrl+Shift+R` |
 
 ---
 
