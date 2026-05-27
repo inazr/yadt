@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.inazr.yadt</id>
     <name>YADT — Yet Another dbt Tool</name>
-    <vendor email="yadt@stephan-ohm.com" url="https://github.com/inazr/dbt-helper">inazr</vendor>
+    <vendor email="yadt@stephan-ohm.com" url="https://github.com/inazr/yadt">inazr</vendor>
     <description><![CDATA[
 <h2>YADT — Lineage, Code Intelligence & Runner for dbt</h2>
 
