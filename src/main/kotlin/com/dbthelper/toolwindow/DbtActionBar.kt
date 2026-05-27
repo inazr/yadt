@@ -1,5 +1,6 @@
 package com.dbthelper.toolwindow
 
+import com.dbthelper.actions.DbtCommandBuilder
 import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtVerb
 import com.dbthelper.core.ProfilesParser
@@ -12,6 +13,7 @@ import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
 import javax.swing.Box
+import javax.swing.BoxLayout
 import javax.swing.ButtonGroup
 import javax.swing.JButton
 import javax.swing.JCheckBox
@@ -19,6 +21,8 @@ import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JToggleButton
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 
 /**
  * Shared settings/action bar shown above the Lineage and Runner tabs.
@@ -60,6 +64,7 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
     private val goButton = JButton("GO")
 
     private var running = false
+    private var suppressSelectorEvents = false
     private var fullRefreshAllowedForModel = false
 
     init {
@@ -84,7 +89,7 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
         }
 
         val stack = JPanel().apply {
-            layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(row1)
             add(row2)
         }
@@ -110,7 +115,12 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
     /** Auto-fill the selector from the active editor (does not move the graph). */
     fun setSelector(text: String) {
         if (selectorField.text == text) return
-        selectorField.text = text
+        suppressSelectorEvents = true
+        try {
+            selectorField.text = text
+        } finally {
+            suppressSelectorEvents = false
+        }
         updatePreview()
         updateGoEnabled()
     }
@@ -159,15 +169,15 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     private fun initListeners() {
-        selectorField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+        selectorField.document.addDocumentListener(object : DocumentListener {
             private fun changed() {
                 updatePreview()
                 updateGoEnabled()
-                onSelectorChanged?.invoke(selectorField.text.trim())
+                if (!suppressSelectorEvents) onSelectorChanged?.invoke(selectorField.text.trim())
             }
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = changed()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = changed()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = changed()
+            override fun insertUpdate(e: DocumentEvent?) = changed()
+            override fun removeUpdate(e: DocumentEvent?) = changed()
+            override fun changedUpdate(e: DocumentEvent?) = changed()
         })
         verbButtons.values.forEach { btn ->
             btn.addActionListener { updateForVerb() }
@@ -211,7 +221,7 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     private fun updatePreview() {
-        commandPreview.text = com.dbthelper.actions.DbtCommandBuilder.buildDisplay(currentSpec())
+        commandPreview.text = DbtCommandBuilder.buildDisplay(currentSpec())
     }
 
     private fun updateGoEnabled() {
