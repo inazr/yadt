@@ -67,6 +67,10 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
     @Volatile
     private var lastBuildableNodeIds: List<String> = emptyList()
 
+    // Relation-key -> uniqueId lookup, built once at GO and cleared at run end.
+    @Volatile
+    private var runRelationKeyIndex: Map<String, String>? = null
+
     init {
         Disposer.register(parentDisposable, this)
 
@@ -438,16 +442,19 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
         refreshGraph()
     }
 
-    /** Called at GO: clear statuses and mark all buildable graph nodes as queued. */
+    /** Called at GO: clear statuses, build the relation index, mark buildable nodes queued. */
     fun beginRunStatus() {
         if (isDisposed) return
-        val queued = lastBuildableNodeIds.associateWith { "queued" }
-        val json = mapper.writeValueAsString(queued)
-        val escaped = escapeJsJson(json)
-        ApplicationManager.getApplication().invokeLater {
-            if (isDisposed) return@invokeLater
-            executeJs("clearNodeStatuses()")
-            if (queued.isNotEmpty()) executeJs("setNodeStatuses('$escaped')")
+        ApplicationManager.getApplication().executeOnPooledThread {
+            if (isDisposed) return@executeOnPooledThread
+            runRelationKeyIndex = buildRelationKeyIndex(ManifestService.getInstance(project).getIndex())
+            val queued = lastBuildableNodeIds.associateWith { "queued" }
+            val escaped = escapeJsJson(mapper.writeValueAsString(queued))
+            ApplicationManager.getApplication().invokeLater {
+                if (isDisposed) return@invokeLater
+                executeJs("clearNodeStatuses()")
+                if (queued.isNotEmpty()) executeJs("setNodeStatuses('$escaped')")
+            }
         }
     }
 
@@ -455,15 +462,10 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
     fun onRunnerLine(line: String) {
         if (isDisposed) return
         val update = DbtRunStatusParser.parseLine(line) ?: return
-        ApplicationManager.getApplication().executeOnPooledThread {
-            if (isDisposed) return@executeOnPooledThread
-            val index = ManifestService.getInstance(project).getIndex()
-            val uniqueId = buildRelationKeyIndex(index)[update.relationKey] ?: return@executeOnPooledThread
-            val json = mapper.writeValueAsString(mapOf(uniqueId to update.status))
-            val escaped = escapeJsJson(json)
-            ApplicationManager.getApplication().invokeLater {
-                if (!isDisposed) executeJs("setNodeStatuses('$escaped')")
-            }
+        val uniqueId = runRelationKeyIndex?.get(update.relationKey) ?: return
+        val escaped = escapeJsJson(mapper.writeValueAsString(mapOf(uniqueId to update.status)))
+        ApplicationManager.getApplication().invokeLater {
+            if (!isDisposed) executeJs("setNodeStatuses('$escaped')")
         }
     }
 
@@ -475,6 +477,7 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
             val service = ManifestService.getInstance(project)
             val dbtRoot = service.getLocator().findProjectRoot() ?: return@executeOnPooledThread
             val statuses = RunResultsReconciler.reconcile(java.io.File(dbtRoot.path), service.getIndex())
+            runRelationKeyIndex = null
             val json = mapper.writeValueAsString(statuses)
             val escaped = escapeJsJson(json)
             ApplicationManager.getApplication().invokeLater {
