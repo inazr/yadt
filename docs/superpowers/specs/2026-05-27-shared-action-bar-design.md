@@ -194,8 +194,10 @@ different from `currentModelId`, set it, clear `expandedBoundaryNodes`, and
 ### `DbtToolWindowFactory` — simplified
 
 Create a single `Content` wrapping `DbtMainPanel`. The `HIDE_ID_LABEL` client
-property is no longer needed (no platform tab strip is shown) and is removed.
-`shouldBeAvailable` and `DumbAware` stay.
+property is **retained**: even with a single `Content`, the platform renders the
+bold "dbt Helper" id label above the content, and `DbtMainPanel` already provides
+its own top bar — so the label stays suppressed (also a documented CLAUDE.md
+convention). `shouldBeAvailable` and `DumbAware` stay.
 
 ### `plugin.xml`
 
