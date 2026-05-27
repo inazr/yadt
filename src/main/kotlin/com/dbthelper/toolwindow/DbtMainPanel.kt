@@ -38,8 +38,10 @@ class DbtMainPanel(
 
     @Volatile private var currentProcess: Process? = null
     @Volatile private var isRunning = false
+    @Volatile private var userStopped = false
 
     private val plainNameRegex = Regex("^[A-Za-z0-9_]+$")
+    private val timestampRegex = Regex("^\\d{2}:\\d{2}:\\d{2}.*")
 
     init {
         Disposer.register(parentDisposable, this)
@@ -91,6 +93,7 @@ class DbtMainPanel(
 
     private fun startCommand(spec: DbtCommandSpec) {
         if (isRunning) return
+        userStopped = false
         isRunning = true
         actionBar.setRunning(true)
         tabs.selectedComponent = runnerTab
@@ -103,7 +106,7 @@ class DbtMainPanel(
             override fun onLine(line: String) {
                 if (spec.verb == DbtVerb.PREVIEW) {
                     if (line.startsWith("$") || line.startsWith("Previewing") ||
-                        line.matches(Regex("^\\d{2}:\\d{2}:\\d{2}.*"))
+                        line.matches(timestampRegex)
                     ) runnerTab.appendLine(line)
                 } else {
                     runnerTab.appendLine(line)
@@ -121,11 +124,13 @@ class DbtMainPanel(
                         runnerTab.appendLine("\n" + (table ?: "(no data returned)"))
                     }
 
-                    val label = "dbt ${spec.verb.display.lowercase()}"
-                    if (result.success) {
-                        notify("$label completed", NotificationType.INFORMATION)
-                    } else if (result.exitCode != -1) {
-                        notify("$label failed (exit code ${result.exitCode})", NotificationType.ERROR)
+                    if (!userStopped) {
+                        val label = "dbt ${spec.verb.display.lowercase()}"
+                        if (result.success) {
+                            notify("$label completed", NotificationType.INFORMATION)
+                        } else if (result.exitCode != -1) {
+                            notify("$label failed (exit code ${result.exitCode})", NotificationType.ERROR)
+                        }
                     }
                 }
             }
@@ -133,6 +138,7 @@ class DbtMainPanel(
     }
 
     private fun stopCommand() {
+        userStopped = true
         currentProcess?.destroyForcibly()
         currentProcess = null
         runnerTab.appendLine("\n--- Process terminated ---")
