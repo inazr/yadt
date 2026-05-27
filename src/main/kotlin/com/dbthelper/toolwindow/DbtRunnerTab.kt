@@ -54,7 +54,7 @@ class DbtRunnerTab(
      */
     fun formatPreviewTable(output: String): String? {
         try {
-            val clean = output.replace(Regex("\\[[0-9;]*[A-Za-z]"), "")
+            val clean = output.replace(Regex("\u001B\\[[0-9;]*[A-Za-z]"), "")
             val jsonStart = clean.indexOfFirst { it == '{' || it == '[' }
             if (jsonStart < 0) return null
             val jsonStr = clean.substring(jsonStart)
