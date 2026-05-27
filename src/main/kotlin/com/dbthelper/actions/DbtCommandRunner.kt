@@ -112,10 +112,21 @@ class DbtCommandRunner(private val project: Project) {
         Thread {
             val output = StringBuilder()
             try {
-                listener.onLine("$ ${command.joinToString(" ")}")
+                val colorsEnabled = DbtHelperSettings.getInstance(project).state.enableColoredOutput
+                // Insert dbt's global color flag right after the executable, unless the
+                // caller already specified one.
+                val finalCommand = command.toMutableList()
+                if (finalCommand.size > 1
+                    && !finalCommand.contains("--use-colors")
+                    && !finalCommand.contains("--no-use-colors")
+                ) {
+                    finalCommand.add(1, if (colorsEnabled) "--use-colors" else "--no-use-colors")
+                }
+
+                listener.onLine("$ ${finalCommand.joinToString(" ")}")
                 listener.onLine("")
 
-                val processBuilder = ProcessBuilder(command)
+                val processBuilder = ProcessBuilder(finalCommand)
                     .directory(workingDir)
                     .redirectErrorStream(true)
 
@@ -124,7 +135,12 @@ class DbtCommandRunner(private val project: Project) {
                 System.getenv("PATH")?.let { env["PATH"] = it }
                 System.getenv("HOME")?.let { env["HOME"] = it }
                 env["COLUMNS"] = "500"
-                env["NO_COLOR"] = "1"
+                if (colorsEnabled) {
+                    env.remove("NO_COLOR")
+                    env["FORCE_COLOR"] = "1"
+                } else {
+                    env["NO_COLOR"] = "1"
+                }
 
                 val process = processBuilder.start()
                 listener.onProcessStarted(process)
