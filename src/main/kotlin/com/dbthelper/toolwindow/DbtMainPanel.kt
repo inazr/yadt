@@ -39,6 +39,7 @@ class DbtMainPanel(
     @Volatile private var currentProcess: Process? = null
     @Volatile private var isRunning = false
     @Volatile private var userStopped = false
+    private var runGeneration = 0
 
     private val plainNameRegex = Regex("^[A-Za-z0-9_]+$")
     private val timestampRegex = Regex("^\\d{2}:\\d{2}:\\d{2}.*")
@@ -77,6 +78,9 @@ class DbtMainPanel(
         })
 
         FileEditorManager.getInstance(project).selectedFiles.firstOrNull()?.let { autoFillFromFile(it) }
+
+        // Kick off the initial manifest parse on open; onManifestUpdated will auto-fill the selector.
+        ManifestService.getInstance(project).reparse()
     }
 
     private fun autoFillFromFile(file: VirtualFile) {
@@ -93,6 +97,7 @@ class DbtMainPanel(
 
     private fun startCommand(spec: DbtCommandSpec) {
         if (isRunning) return
+        val generation = ++runGeneration
         userStopped = false
         isRunning = true
         actionBar.setRunning(true)
@@ -106,7 +111,7 @@ class DbtMainPanel(
             override fun onLine(line: String) {
                 if (spec.verb == DbtVerb.PREVIEW) {
                     if (line.startsWith("$") || line.startsWith("Previewing") ||
-                        line.matches(timestampRegex)
+                        line.startsWith("ERROR") || line.matches(timestampRegex)
                     ) runnerTab.appendLine(line)
                 } else {
                     runnerTab.appendLine(line)
@@ -115,6 +120,7 @@ class DbtMainPanel(
 
             override fun onFinished(result: DbtCommandRunner.RunResult) {
                 ApplicationManager.getApplication().invokeLater {
+                    if (generation != runGeneration) return@invokeLater
                     isRunning = false
                     currentProcess = null
                     actionBar.setRunning(false)
@@ -138,6 +144,7 @@ class DbtMainPanel(
     }
 
     private fun stopCommand() {
+        runGeneration++
         userStopped = true
         currentProcess?.destroyForcibly()
         currentProcess = null
