@@ -48,6 +48,15 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
     @Volatile
     private var isDisposed = false
 
+    // Depth overrides derived from a selector's graph operators (e.g. "2+model+1").
+    // Null means "use the configured upstream/downstream depth from settings".
+    // Set by focusModel; cleared when focus comes from the editor or a node click.
+    @Volatile
+    private var selectorUpstreamDepth: Int? = null
+
+    @Volatile
+    private var selectorDownstreamDepth: Int? = null
+
     // Expanded boundary nodes (not persisted to settings)
     private val expandedBoundaryNodes = mutableSetOf<String>()
 
@@ -217,6 +226,8 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
             if (!currentIsInSameFile) {
                 currentModelId = modelId
                 expandedBoundaryNodes.clear()
+                selectorUpstreamDepth = null
+                selectorDownstreamDepth = null
                 refreshGraph()
             }
         } else if (modelId != null && modelId == currentModelId) {
@@ -226,15 +237,25 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
         }
     }
 
-    /** Focus the graph on a plain model name (no-op if it doesn't resolve). */
-    fun focusModel(modelName: String) {
+    /**
+     * Focus the graph on a model name (no-op if it doesn't resolve). Optional
+     * depth overrides come from a selector's graph operators; null falls back to
+     * the configured depth in settings. Refreshes when either the model or the
+     * depth override changes, so editing "model" → "+model" re-renders.
+     */
+    fun focusModel(modelName: String, upstreamDepth: Int? = null, downstreamDepth: Int? = null) {
         if (isDisposed) return
         val modelId = ManifestService.getInstance(project).findModelIdByName(modelName) ?: return
-        if (modelId != currentModelId) {
+        val modelChanged = modelId != currentModelId
+        val depthChanged = upstreamDepth != selectorUpstreamDepth || downstreamDepth != selectorDownstreamDepth
+        if (!modelChanged && !depthChanged) return
+        if (modelChanged) {
             currentModelId = modelId
             expandedBoundaryNodes.clear()
-            refreshGraph()
         }
+        selectorUpstreamDepth = upstreamDepth
+        selectorDownstreamDepth = downstreamDepth
+        refreshGraph()
     }
 
     fun refreshGraph() {
@@ -253,8 +274,8 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
                 val builder = LineageGraphBuilder(index)
                 val graph = builder.build(
                     currentNodeId = modelId,
-                    upstreamDepth = settings.state.upstreamDepth,
-                    downstreamDepth = settings.state.downstreamDepth,
+                    upstreamDepth = selectorUpstreamDepth ?: settings.state.upstreamDepth,
+                    downstreamDepth = selectorDownstreamDepth ?: settings.state.downstreamDepth,
                     showExposures = settings.state.showExposures,
                     expandedBoundaryNodes = expandedBoundaryNodes
                 ).copy(edgeCurveStyle = settings.state.edgeCurveStyle, layoutDirection = settings.state.layoutDirection)
@@ -286,6 +307,8 @@ class LineageTab(private val project: Project, private val parentDisposable: Dis
         if (nodeId != currentModelId) {
             currentModelId = nodeId
             expandedBoundaryNodes.clear()
+            selectorUpstreamDepth = null
+            selectorDownstreamDepth = null
             refreshGraph()
         }
 

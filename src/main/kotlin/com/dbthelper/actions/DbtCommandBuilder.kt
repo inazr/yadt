@@ -39,23 +39,23 @@ object DbtCommandBuilder {
 
     private fun buildTokens(spec: DbtCommandSpec, exe: String): List<String> {
         val sel = spec.selector.trim()
+        // Omit --select entirely when the selector is blank, rather than emitting a
+        // dangling "--select".
+        val select = if (sel.isNotEmpty()) listOf("--select", sel) else emptyList()
         val cmd = mutableListOf(exe)
         when (spec.verb) {
             DbtVerb.RUN -> {
-                cmd += listOf("run", "--select", sel)
+                cmd += listOf("run") + select
                 if (spec.fullRefresh) cmd += "--full-refresh"
             }
             DbtVerb.BUILD -> {
-                cmd += listOf("build", "--select", sel)
+                cmd += listOf("build") + select
                 if (spec.fullRefresh) cmd += "--full-refresh"
             }
-            DbtVerb.TEST -> cmd += listOf("test", "--select", sel)
-            DbtVerb.COMPILE -> cmd += listOf("compile", "--select", sel)
-            DbtVerb.PREVIEW -> cmd += listOf(
-                "show", "--select", sel,
-                "--limit", spec.previewLimit.toString(),
-                "--output", "json"
-            )
+            DbtVerb.TEST -> cmd += listOf("test") + select
+            DbtVerb.COMPILE -> cmd += listOf("compile") + select
+            DbtVerb.PREVIEW -> cmd += listOf("show") + select +
+                listOf("--limit", spec.previewLimit.toString(), "--output", "json")
             DbtVerb.GENERATE_DOCS -> cmd += listOf("docs", "generate")
         }
         if (spec.target.isNotBlank()) cmd += listOf("--target", spec.target)

@@ -70,9 +70,13 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
     init {
         border = JBUI.Borders.empty(4)
 
-        // Row 1: selector | preview
+        // Row 1: "dbt Select:" label + selector | preview
+        val selectorPanel = JPanel(BorderLayout(4, 0)).apply {
+            add(JLabel("dbt Select:"), BorderLayout.WEST)
+            add(selectorField, BorderLayout.CENTER)
+        }
         val row1 = JPanel(BorderLayout(8, 0)).apply {
-            add(selectorField, BorderLayout.WEST)
+            add(selectorPanel, BorderLayout.WEST)
             add(commandPreview, BorderLayout.CENTER)
         }
         selectorField.preferredSize = Dimension(260, selectorField.preferredSize.height)

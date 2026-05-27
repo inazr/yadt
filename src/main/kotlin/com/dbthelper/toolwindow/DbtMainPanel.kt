@@ -3,6 +3,7 @@ package com.dbthelper.toolwindow
 import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtVerb
+import com.dbthelper.core.DbtSelectorParser
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.ManifestUpdateListener
 import com.dbthelper.core.model.ManifestIndex
@@ -24,7 +25,7 @@ import javax.swing.JPanel
 /**
  * Hosts the shared action bar above the Lineage + Runner tabs and coordinates
  * between them: runs commands, owns run-state, auto-fills the selector from the
- * editor, and drives the lineage graph from plain selectors.
+ * editor, and drives the lineage graph from the selector (honoring graph operators).
  */
 class DbtMainPanel(
     private val project: Project,
@@ -41,7 +42,6 @@ class DbtMainPanel(
     @Volatile private var userStopped = false
     private var runGeneration = 0
 
-    private val plainNameRegex = Regex("^[A-Za-z0-9_]+$")
     private val timestampRegex = Regex("^\\d{2}:\\d{2}:\\d{2}.*")
 
     init {
@@ -92,7 +92,8 @@ class DbtMainPanel(
     }
 
     private fun driveLineage(selector: String) {
-        if (plainNameRegex.matches(selector)) lineageTab.focusModel(selector)
+        val focus = DbtSelectorParser.parse(selector) ?: return
+        lineageTab.focusModel(focus.modelName, focus.upstreamDepth, focus.downstreamDepth)
     }
 
     private fun startCommand(spec: DbtCommandSpec) {
