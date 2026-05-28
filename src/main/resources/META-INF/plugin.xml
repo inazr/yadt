@@ -169,5 +169,7 @@ for <a href="https://www.getdbt.com/">dbt</a> projects directly into your JetBra
                   topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
         <listener class="com.dbthelper.listeners.ManifestFileWatcher"
                   topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
+        <listener class="com.dbthelper.listeners.AutoParseOnSaveListener"
+                  topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
     </projectListeners>
 </idea-plugin>
