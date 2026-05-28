@@ -580,6 +580,22 @@
             font-size: 10px;
             font-style: italic;
         }
+
+        #minimap-wrap {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 160px;
+            height: 240px;
+            background: var(--tooltip-bg);
+            border: 1px solid var(--tooltip-border);
+            border-radius: 4px;
+            z-index: 50;
+            cursor: crosshair;
+        }
+        #minimap-wrap.cy-minimap-pan { cursor: grabbing; }
+        #minimap { display: block; width: 100%; height: 100%; }
+        #controls button.active { background: var(--card-selected-bg); border-color: var(--card-selected-border); }
     </style>
 </head>
 <body>
@@ -605,6 +621,7 @@
         <button id="zoom-in" title="Zoom in">+</button>
         <button id="zoom-out" title="Zoom out">−</button>
         <button id="zoom-fit" title="Fit graph">⊡</button>
+        <button id="minimap-toggle" title="Toggle mini-map">▣</button>
         <button id="toggle-sidebar" title="Show docs sidebar">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;">
                 <rect x="2" y="3" width="12" height="10" rx="1"/>
@@ -614,6 +631,10 @@
                 <line x1="11.5" y1="10" x2="13" y2="10"/>
             </svg>
         </button>
+    </div>
+
+    <div id="minimap-wrap" style="display:none">
+        <canvas id="minimap" width="160" height="240"></canvas>
     </div>
 
     <aside id="docs-sidebar">

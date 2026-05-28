@@ -702,6 +702,7 @@
             // Build HTML cards over cytoscape
             buildNodeCards();
             cy.on('pan zoom position layoutstop', syncNodeCards);
+            cy.on('pan zoom layoutstop', drawMinimap);
 
             // Manual wheel/pinch zoom for JCEF trackpad compatibility
             var cyContainer = document.getElementById('cy');
@@ -920,6 +921,7 @@
 
     window.renderGraph = function (jsonStr) {
         loadExpandedFromStorage();
+        loadMinimapPref();
         layoutCache.clear();
         try {
             const graph = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
@@ -1496,4 +1498,113 @@
             sendToKotlin('ready', {});
         }, 100);
     });
+
+    // === Mini-map ===
+
+    var minimapVisible = false;
+    var minimapBtn = document.getElementById('minimap-toggle');
+    var minimapWrap = document.getElementById('minimap-wrap');
+    var minimapCanvas = document.getElementById('minimap');
+    var minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
+    var minimapTransform = null;
+
+    function loadMinimapPref() {
+        try {
+            var saved = localStorage.getItem(projectStorageKey('minimap'));
+            if (saved === '1') setMinimapVisible(true);
+        } catch (e) {}
+    }
+    function setMinimapVisible(v) {
+        minimapVisible = !!v;
+        if (minimapWrap) minimapWrap.style.display = v ? 'block' : 'none';
+        if (minimapBtn) minimapBtn.classList.toggle('active', v);
+        try { localStorage.setItem(projectStorageKey('minimap'), v ? '1' : '0'); } catch (e) {}
+        if (v) drawMinimap();
+    }
+    if (minimapBtn) minimapBtn.addEventListener('click', function () { setMinimapVisible(!minimapVisible); });
+
+    function drawMinimap() {
+        if (!minimapVisible || !cy || !minimapCtx) return;
+        var ctx = minimapCtx;
+        var w = minimapCanvas.width;
+        var h = minimapCanvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        var nodes = cy.nodes();
+        if (nodes.length === 0) return;
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        nodes.forEach(function (n) {
+            var p = n.position();
+            var nw = n.width(), nh = n.height();
+            minX = Math.min(minX, p.x - nw/2);
+            minY = Math.min(minY, p.y - nh/2);
+            maxX = Math.max(maxX, p.x + nw/2);
+            maxY = Math.max(maxY, p.y + nh/2);
+        });
+        var pad = 20;
+        var bw = (maxX - minX) || 1;
+        var bh = (maxY - minY) || 1;
+        var scale = Math.min((w - pad*2) / bw, (h - pad*2) / bh);
+        function tx(x) { return pad + (x - minX) * scale; }
+        function ty(y) { return pad + (y - minY) * scale; }
+
+        ctx.fillStyle = '#666';
+        nodes.forEach(function (n) {
+            var p = n.position();
+            var nw = n.width() * scale;
+            var nh = n.height() * scale;
+            ctx.fillRect(tx(p.x) - nw/2, ty(p.y) - nh/2, Math.max(2, nw), Math.max(2, nh));
+        });
+
+        var pan = cy.pan();
+        var zoom = cy.zoom();
+        var vp = cy.container().getBoundingClientRect();
+        var vpModelW = vp.width / zoom;
+        var vpModelH = vp.height / zoom;
+        var vpModelX = -pan.x / zoom;
+        var vpModelY = -pan.y / zoom;
+        ctx.strokeStyle = '#4E79A7';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(tx(vpModelX), ty(vpModelY), vpModelW * scale, vpModelH * scale);
+
+        minimapTransform = { tx: tx, ty: ty, scale: scale, minX: minX, minY: minY, pad: pad };
+    }
+
+    if (minimapCanvas) {
+        var miniDragging = false;
+        function modelFromMinimap(e) {
+            var rect = minimapCanvas.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+            if (!minimapTransform) return null;
+            var t = minimapTransform;
+            var modelX = t.minX + (x - t.pad) / t.scale;
+            var modelY = t.minY + (y - t.pad) / t.scale;
+            return { x: modelX, y: modelY };
+        }
+        minimapCanvas.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            miniDragging = true;
+            if (minimapWrap) minimapWrap.classList.add('cy-minimap-pan');
+            var p = modelFromMinimap(e);
+            if (p && cy) centerCyOn(p);
+        });
+        window.addEventListener('mousemove', function (e) {
+            if (!miniDragging) return;
+            var p = modelFromMinimap(e);
+            if (p && cy) centerCyOn(p);
+        });
+        window.addEventListener('mouseup', function () {
+            if (!miniDragging) return;
+            miniDragging = false;
+            if (minimapWrap) minimapWrap.classList.remove('cy-minimap-pan');
+        });
+    }
+    function centerCyOn(model) {
+        if (!cy) return;
+        var zoom = cy.zoom();
+        var w = cy.container().clientWidth;
+        var h = cy.container().clientHeight;
+        cy.pan({ x: -model.x * zoom + w / 2, y: -model.y * zoom + h / 2 });
+    }
 })();
