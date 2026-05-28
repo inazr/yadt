@@ -1437,6 +1437,17 @@
         }
     }
 
+    // Cluster mode dropdown
+    var clusterModeSelect = document.getElementById('cluster-mode');
+    if (clusterModeSelect) {
+        clusterModeSelect.addEventListener('change', function () {
+            sendToKotlin('clusterModeChanged', { mode: clusterModeSelect.value });
+        });
+    }
+    window.setClusterMode = function (mode) {
+        if (clusterModeSelect) clusterModeSelect.value = mode;
+    };
+
     // Search input
     var searchInput = document.getElementById('search-input');
     var searchClear = document.getElementById('search-clear');

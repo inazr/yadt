@@ -32,6 +32,8 @@ class DbtHelperSettings : PersistentStateComponent<DbtHelperSettings.State> {
         var maxLayerSkipBeforeStub: Int = 3,
         // Whether to show the red failure-count badge on lineage cards.
         var showTestFailureBadge: Boolean = true,
+        // Cluster mode for lineage grouping: "none" | "schema" | "folder" | "tag".
+        var defaultClusterMode: String = "schema",
         // Bumped when a settings default changes so loadState can migrate old data.
         // Absent in pre-migration saved files, so it deserializes to 0 there.
         var configVersion: Int = 0

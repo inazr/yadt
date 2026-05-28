@@ -193,6 +193,11 @@ class LineageTab(
                             }
                         }
                     }
+                    "clusterModeChanged" -> {
+                        val mode = payload?.get("mode")?.asText() ?: "none"
+                        com.dbthelper.settings.DbtHelperSettings.getInstance(project).state.defaultClusterMode = mode
+                        refreshGraph()
+                    }
                 }
                 JBCefJSQuery.Response("ok")
             } catch (e: Exception) {
@@ -219,6 +224,13 @@ class LineageTab(
                     val rootPath = project.basePath ?: "default"
                     val hash = rootPath.hashCode().toString(16)
                     cefBrowser?.executeJavaScript("window.__projectRootHash = '$hash';", cefBrowser.url, 0)
+
+                    // Inject default cluster mode from settings
+                    val clusterMode = com.dbthelper.settings.DbtHelperSettings.getInstance(project).state.defaultClusterMode
+                    cefBrowser?.executeJavaScript(
+                        "window.setClusterMode && window.setClusterMode('$clusterMode');",
+                        cefBrowser.url, 0
+                    )
 
                     // Page is loaded and bridge is injected — mark ready and render
                     isPageReady = true
