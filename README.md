@@ -21,7 +21,7 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 ## Installation
 
 ### From Disk (Development Build)
-1. Download the latest `dbt-helper-x.x.x.zip` from [Releases](https://github.com/Endiruslan/dbt-helper/releases)
+1. Download the latest `yadt-x.x.x.zip` from [Releases](https://github.com/inazr/yadt/releases)
 2. In your IDE: **Settings** → **Plugins** → **⚙️** → **Install Plugin from Disk...**
 3. Select the ZIP file and restart the IDE
 
@@ -67,12 +67,12 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 ## Building from Source
 
 ```bash
-git clone https://github.com/Endiruslan/dbt-helper.git
-cd dbt-helper
+git clone https://github.com/inazr/yadt.git
+cd yadt
 ./gradlew buildPlugin
 ```
 
-The plugin ZIP will be at `build/distributions/dbt-helper-x.x.x.zip`.
+The plugin ZIP will be at `build/distributions/yadt-x.x.x.zip`.
 
 To run a development instance:
 ```bash
