@@ -73,6 +73,11 @@ class LineageTab(
     @Volatile
     private var lastBuildableNodeIds: List<String> = emptyList()
 
+    // All non-stub node ids currently visible; used to find the first hidden hop
+    // when the user clicks a "skip" stub.
+    @Volatile
+    private var lastVisibleNodeIds: Set<String> = emptySet()
+
     // Relation-key -> uniqueId lookup, built once at GO and cleared at run end.
     @Volatile
     private var runRelationKeyIndex: Map<String, String>? = null
@@ -164,7 +169,7 @@ class LineageTab(
                     }
                     "expandRequest" -> {
                         val boundaryNodeId = payload.path("boundaryNodeId").asText()
-                        val direction = payload.path("stubDirection").asText()
+                        val direction = payload.path("direction").asText()
                         handleExpandRequest(boundaryNodeId, direction)
                     }
                     "regenerateDocs" -> handleRegenerateDocs()
@@ -442,6 +447,10 @@ class LineageTab(
                 lastBuildableNodeIds = graph.nodes
                     .filter { it.resourceType in RunResultsReconciler.BUILDABLE_TYPES }
                     .map { it.id }
+                lastVisibleNodeIds = graph.nodes
+                    .filter { it.resourceType != "stub" && it.resourceType != "cluster" }
+                    .map { it.id }
+                    .toSet()
 
                 val graphJson = mapper.writeValueAsString(graph)
                 val escaped = graphJson.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
@@ -582,9 +591,15 @@ class LineageTab(
 
     private fun handleExpandRequest(boundaryNodeId: String, direction: String = "") {
         if (direction == "skip") {
-            // TODO: for "skip" stubs, ideally refocus on the first hidden downstream node.
-            // For now, refocus on the boundary node so the user can navigate from there.
-            handleNodeClick(boundaryNodeId, "model")
+            val index = ManifestService.getInstance(project).getIndex()
+            val firstHidden = index.getDownstream(boundaryNodeId)
+                .firstOrNull { it !in lastVisibleNodeIds }
+            val target = firstHidden ?: boundaryNodeId
+            val resourceType = index.nodes[target]?.resourceType
+                ?: index.sources[target]?.let { "source" }
+                ?: index.exposures[target]?.let { "exposure" }
+                ?: "model"
+            handleNodeClick(target, resourceType)
             return
         }
         expandedBoundaryNodes.add(boundaryNodeId)
