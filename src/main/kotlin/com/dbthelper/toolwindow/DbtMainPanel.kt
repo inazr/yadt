@@ -146,7 +146,13 @@ class DbtMainPanel(
                     if (!userStopped) {
                         val label = "dbt ${spec.verb.display.lowercase()}"
                         if (result.success) {
-                            notify("$label completed", NotificationType.INFORMATION)
+                            // COMPILE's notification is owned by copyCompiledToClipboard above
+                            // (it reports the specific clipboard outcome). Suppress the generic
+                            // "completed" toast so the two notifications don't pile up — or worse,
+                            // contradict each other when no compiled file was found.
+                            if (spec.verb != DbtVerb.COMPILE) {
+                                notify("$label completed", NotificationType.INFORMATION)
+                            }
                         } else if (result.exitCode != -1) {
                             notify("$label failed (exit code ${result.exitCode})", NotificationType.ERROR)
                         }
