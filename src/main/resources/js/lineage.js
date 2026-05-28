@@ -923,6 +923,7 @@
         layoutCache.clear();
         try {
             const graph = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            window.__catalogAvailable = !!graph.catalogAvailable;
             currentColorMode = graph.nodeColorMode || 'resource';
 
             // Prune expanded ids that are no longer in the graph
@@ -1036,6 +1037,24 @@
         }
     }
 
+    var catalogToastShown = false;
+    function maybeShowCatalogMissingToast(tokens) {
+        if (catalogToastShown) return;
+        if (window.__catalogAvailable) return;
+        var usesCol = tokens.some(function (t) { return t.kind === 'col'; });
+        if (!usesCol) return;
+        catalogToastShown = true;
+        var toast = document.createElement('div');
+        toast.textContent = 'Column search uses schema.yml columns. For complete results, run `dbt docs generate`.';
+        toast.style.cssText =
+            'position: absolute; top: 8px; left: 50%; transform: translateX(-50%); ' +
+            'background: var(--tooltip-bg); color: var(--tooltip-text); ' +
+            'border: 1px solid var(--tooltip-border); padding: 6px 12px; ' +
+            'border-radius: 6px; z-index: 2000; font-size: 11px;';
+        document.body.appendChild(toast);
+        setTimeout(function () { toast.remove(); }, 6000);
+    }
+
     window.filterNodes = function (query) {
         if (!cy) return;
         if (!query || query.trim() === '') {
@@ -1061,7 +1080,7 @@
             else edge.removeClass('dimmed');
         });
 
-        // Task 6 will add: maybeShowCatalogMissingToast(tokens);
+        maybeShowCatalogMissingToast(tokens);
     };
 
     window.resetFilter = function () {

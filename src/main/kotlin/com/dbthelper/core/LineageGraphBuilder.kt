@@ -5,7 +5,8 @@ import java.util.LinkedList
 
 class LineageGraphBuilder(
     private val index: ManifestIndex,
-    private val project: com.intellij.openapi.project.Project? = null
+    private val project: com.intellij.openapi.project.Project? = null,
+    private val catalogAvailable: Boolean = false
 ) {
 
     fun build(
@@ -142,7 +143,8 @@ class LineageGraphBuilder(
                 nodes = lineageNodes,
                 edges = validEdges,
                 hiddenUpstreamCount = upstreamResult.hiddenCount,
-                hiddenDownstreamCount = downstreamResult.hiddenCount
+                hiddenDownstreamCount = downstreamResult.hiddenCount,
+                catalogAvailable = catalogAvailable
             )
         }
 
@@ -172,7 +174,8 @@ class LineageGraphBuilder(
             nodes = lineageNodes + newStubNodes,
             edges = keptEdges + newStubEdges,
             hiddenUpstreamCount = upstreamResult.hiddenCount,
-            hiddenDownstreamCount = downstreamResult.hiddenCount
+            hiddenDownstreamCount = downstreamResult.hiddenCount,
+            catalogAvailable = catalogAvailable
         )
     }
 
