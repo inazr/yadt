@@ -6,6 +6,7 @@ import com.dbthelper.actions.DbtRunStatusParser
 import com.dbthelper.actions.DbtVerb
 import com.dbthelper.actions.RunResultsReconciler
 import com.dbthelper.core.DocsPayloadBuilder
+import com.dbthelper.core.FreshnessDetailBuilder
 import com.dbthelper.core.LineageGraphBuilder
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.SourcesFreshnessParser
@@ -72,6 +73,11 @@ class LineageTab(
     // used to seed "queued" at GO. Updated on every refreshGraph().
     @Volatile
     private var lastBuildableNodeIds: List<String> = emptyList()
+
+    // All non-stub node ids currently visible; used to find the first hidden hop
+    // when the user clicks a "skip" stub.
+    @Volatile
+    private var lastVisibleNodeIds: Set<String> = emptySet()
 
     // Relation-key -> uniqueId lookup, built once at GO and cleared at run end.
     @Volatile
@@ -164,7 +170,7 @@ class LineageTab(
                     }
                     "expandRequest" -> {
                         val boundaryNodeId = payload.path("boundaryNodeId").asText()
-                        val direction = payload.path("stubDirection").asText()
+                        val direction = payload.path("direction").asText()
                         handleExpandRequest(boundaryNodeId, direction)
                     }
                     "regenerateDocs" -> handleRegenerateDocs()
@@ -200,10 +206,8 @@ class LineageTab(
                         refreshGraph()
                     }
                     "openFreshnessDetail" -> {
-                        // TODO: open a dedicated freshness detail view in a future PR.
-                        // For now, re-use the existing docs sidebar preview for the source node.
                         val nodeId = payload?.get("nodeId")?.asText() ?: return@addHandler JBCefJSQuery.Response("ok")
-                        pushDocsToSidebar(nodeId)
+                        pushFreshnessDetailToSidebar(nodeId)
                     }
                 }
                 JBCefJSQuery.Response("ok")
@@ -442,6 +446,10 @@ class LineageTab(
                 lastBuildableNodeIds = graph.nodes
                     .filter { it.resourceType in RunResultsReconciler.BUILDABLE_TYPES }
                     .map { it.id }
+                lastVisibleNodeIds = graph.nodes
+                    .filter { it.resourceType != "stub" && it.resourceType != "cluster" }
+                    .map { it.id }
+                    .toSet()
 
                 val graphJson = mapper.writeValueAsString(graph)
                 val escaped = graphJson.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
@@ -517,6 +525,31 @@ class LineageTab(
         }
     }
 
+    private fun pushFreshnessDetailToSidebar(nodeId: String) {
+        if (isDisposed) return
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                if (isDisposed) return@executeOnPooledThread
+                val service = ManifestService.getInstance(project)
+                val index = service.getIndex()
+                val sourcesFile = service.getLocator().getTargetDir()?.let { target ->
+                    java.nio.file.Paths.get(target.path, "sources.json")
+                }
+                val available = sourcesFile?.let { java.nio.file.Files.exists(it) } ?: false
+                val freshness = sourcesFile?.let { SourcesFreshnessParser().parseFile(it) } ?: emptyMap()
+                val payload = FreshnessDetailBuilder.build(nodeId, index, freshness, available)
+                    ?: return@executeOnPooledThread
+                val json = mapper.writeValueAsString(payload)
+                val escaped = json.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                ApplicationManager.getApplication().invokeLater {
+                    if (!isDisposed) executeJs("showFreshnessDetail('$escaped')")
+                }
+            } catch (e: Exception) {
+                logger.warn("Error building freshness detail payload", e)
+            }
+        }
+    }
+
     /**
      * Build { "schema.identifier" / "database.schema.identifier" -> uniqueId }
      * for all buildable nodes, for resolving dbt log relations to unique ids.
@@ -582,9 +615,15 @@ class LineageTab(
 
     private fun handleExpandRequest(boundaryNodeId: String, direction: String = "") {
         if (direction == "skip") {
-            // TODO: for "skip" stubs, ideally refocus on the first hidden downstream node.
-            // For now, refocus on the boundary node so the user can navigate from there.
-            handleNodeClick(boundaryNodeId, "model")
+            val index = ManifestService.getInstance(project).getIndex()
+            val firstHidden = index.getDownstream(boundaryNodeId)
+                .firstOrNull { it !in lastVisibleNodeIds }
+            val target = firstHidden ?: boundaryNodeId
+            val resourceType = index.nodes[target]?.resourceType
+                ?: index.sources[target]?.let { "source" }
+                ?: index.exposures[target]?.let { "exposure" }
+                ?: "model"
+            handleNodeClick(target, resourceType)
             return
         }
         expandedBoundaryNodes.add(boundaryNodeId)
