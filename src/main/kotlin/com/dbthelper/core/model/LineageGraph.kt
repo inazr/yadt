@@ -29,8 +29,11 @@ data class LineageNode(
 
 data class ColumnNode(
     val name: String,
+    @com.fasterxml.jackson.annotation.JsonProperty("type")
     val dataType: String?,
-    val description: String?
+    val description: String?,
+    // TODO: derive from ColumnInfo.constraints (primary_key) or tags (pk) in LineageGraphBuilder
+    val isPrimaryKey: Boolean = false
 )
 
 data class LineageEdge(
