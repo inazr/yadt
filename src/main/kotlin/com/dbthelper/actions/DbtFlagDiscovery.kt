@@ -3,6 +3,7 @@ package com.dbthelper.actions
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Discovers which toggle flags the installed dbt accepts for a given verb by
@@ -47,14 +48,37 @@ class DbtFlagDiscovery(project: Project) {
             val fb = FALLBACK[verb] ?: emptySet()
             return ALLOWLIST.filter { it.helpName in fb }
         }
-        return ALLOWLIST.filter { help.contains("--${it.helpName}") }
+        return ALLOWLIST.filter { matchesFlagName(help, it.helpName) }
+    }
+
+    /**
+     * True iff the help text mentions `--<name>` as a complete flag — i.e. not as
+     * a prefix of a longer flag like `--warn-error-options`. We accept whitespace,
+     * `/`, `,`, `]`, or `=` as the boundary after the name, which covers every
+     * shape Click prints flags in (`--a / --no-a`, `--a, -b`, `[--a]`, `--a=VAL`).
+     */
+    private fun matchesFlagName(help: String, name: String): Boolean {
+        val needle = "--$name"
+        var from = 0
+        while (true) {
+            val idx = help.indexOf(needle, from)
+            if (idx < 0) return false
+            val nextIdx = idx + needle.length
+            val next = help.getOrNull(nextIdx)
+            if (next == null || next.isWhitespace() || next in "/,]=") return true
+            from = nextIdx
+        }
     }
 
     private fun runHelp(exe: String, sub: String): String? {
         return try {
             val proc = ProcessBuilder(exe, sub, "--help").redirectErrorStream(true).start()
             val out = proc.inputStream.bufferedReader().readText()
-            if (proc.waitFor() == 0) out else null
+            if (!proc.waitFor(10, TimeUnit.SECONDS)) {
+                proc.destroyForcibly()
+                return null
+            }
+            if (proc.exitValue() == 0) out else null
         } catch (_: Exception) {
             null
         }

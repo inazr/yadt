@@ -49,11 +49,17 @@ object DbtCommandBuilder {
             when {
                 quote != null -> if (c == quote) quote = null else sb.append(c)
                 c == '\'' || c == '"' -> { quote = c; hasToken = true }
-                c.isWhitespace() -> if (hasToken) { tokens += sb.toString(); sb.clear(); hasToken = false }
+                c.isWhitespace() -> {
+                    if (hasToken) {
+                        if (sb.isNotEmpty()) tokens += sb.toString()
+                        sb.clear()
+                        hasToken = false
+                    }
+                }
                 else -> { sb.append(c); hasToken = true }
             }
         }
-        if (hasToken) tokens += sb.toString()
+        if (hasToken && sb.isNotEmpty()) tokens += sb.toString()
         return tokens
     }
 

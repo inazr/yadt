@@ -230,11 +230,18 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
         updateGoEnabled()
     }
 
-    /** Query discovery for the current verb (async) and repopulate the flags state. */
+    /**
+     * Query discovery for the current verb (async) and repopulate the flags state.
+     * The verb at request time is snapshotted; if the user switches verbs again
+     * before the background thread returns, the stale result is dropped so the
+     * bar never shows flags that don't belong to the currently-selected verb.
+     */
     private fun refreshFlagsForVerb() {
+        val verbAtRequest = selectedVerb()
         flagsButton.isEnabled = false
         flagsButton.text = "Flags …"
-        flagDiscovery.flagsForAsync(selectedVerb()) { opts ->
+        flagDiscovery.flagsForAsync(verbAtRequest) { opts ->
+            if (selectedVerb() != verbAtRequest) return@flagsForAsync
             availableFlags = opts
             // Drop any selected flag that this verb does not offer.
             selectedFlags.retainAll(opts.map { it.token }.toSet())
@@ -279,6 +286,10 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     companion object {
+        // GENERATE_DOCS is intentionally absent — the verb still exists in the
+        // enum because the Lineage tab's "Regenerate docs" button triggers it
+        // programmatically (LineageTab.handleRegenerateDocs), but it has no
+        // place in the user-facing dropdown.
         private val DROPDOWN_VERBS = listOf(
             DbtVerb.RUN, DbtVerb.BUILD, DbtVerb.TEST, DbtVerb.COMPILE, DbtVerb.PREVIEW
         )
