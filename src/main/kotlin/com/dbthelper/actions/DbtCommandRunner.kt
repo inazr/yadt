@@ -7,6 +7,8 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import java.io.File
 
+enum class DbtEngine { CORE, FUSION, CLOUD_CLI, UNKNOWN }
+
 class DbtCommandRunner(private val project: Project) {
 
     private val logger = Logger.getInstance(DbtCommandRunner::class.java)
@@ -75,6 +77,29 @@ class DbtCommandRunner(private val project: Project) {
             } else null
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /**
+     * Classify the configured dbt by inspecting its --version banner.
+     * dbt Cloud CLI prints "dbt Cloud CLI"; Fusion mentions "fusion"; dbt Core
+     * prints "Core:" / "installed:". Unknown falls back to CORE semantics at
+     * the call site.
+     */
+    fun detectEngine(): DbtEngine {
+        val banner = try {
+            val dbt = findDbtExecutable()
+            val process = ProcessBuilder(dbt, "--version").redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().readText()
+            if (process.waitFor() == 0) output.lowercase() else return DbtEngine.UNKNOWN
+        } catch (_: Exception) {
+            return DbtEngine.UNKNOWN
+        }
+        return when {
+            "cloud cli" in banner -> DbtEngine.CLOUD_CLI
+            "fusion" in banner -> DbtEngine.FUSION
+            "core:" in banner || "installed:" in banner -> DbtEngine.CORE
+            else -> DbtEngine.UNKNOWN
         }
     }
 
