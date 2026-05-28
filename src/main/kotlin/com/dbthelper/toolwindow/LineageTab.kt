@@ -8,6 +8,7 @@ import com.dbthelper.actions.RunResultsReconciler
 import com.dbthelper.core.DocsPayloadBuilder
 import com.dbthelper.core.LineageGraphBuilder
 import com.dbthelper.core.ManifestService
+import com.dbthelper.core.SourcesFreshnessParser
 import com.dbthelper.core.ManifestUpdateListener
 import com.dbthelper.core.model.LineageGraph
 import com.dbthelper.core.model.ManifestIndex
@@ -193,6 +194,17 @@ class LineageTab(
                             }
                         }
                     }
+                    "clusterModeChanged" -> {
+                        val mode = payload?.get("mode")?.asText() ?: "none"
+                        com.dbthelper.settings.DbtHelperSettings.getInstance(project).state.defaultClusterMode = mode
+                        refreshGraph()
+                    }
+                    "openFreshnessDetail" -> {
+                        // TODO: open a dedicated freshness detail view in a future PR.
+                        // For now, re-use the existing docs sidebar preview for the source node.
+                        val nodeId = payload?.get("nodeId")?.asText() ?: return@addHandler JBCefJSQuery.Response("ok")
+                        pushDocsToSidebar(nodeId)
+                    }
                 }
                 JBCefJSQuery.Response("ok")
             } catch (e: Exception) {
@@ -219,6 +231,13 @@ class LineageTab(
                     val rootPath = project.basePath ?: "default"
                     val hash = rootPath.hashCode().toString(16)
                     cefBrowser?.executeJavaScript("window.__projectRootHash = '$hash';", cefBrowser.url, 0)
+
+                    // Inject default cluster mode from settings
+                    val clusterMode = com.dbthelper.settings.DbtHelperSettings.getInstance(project).state.defaultClusterMode
+                    cefBrowser?.executeJavaScript(
+                        "window.setClusterMode && window.setClusterMode('$clusterMode');",
+                        cefBrowser.url, 0
+                    )
 
                     // Page is loaded and bridge is injected — mark ready and render
                     isPageReady = true
@@ -401,8 +420,13 @@ class LineageTab(
                 if (index === ManifestIndex.EMPTY) return@executeOnPooledThread
 
                 val settings = DbtHelperSettings.getInstance(project)
-                val catalogAvailable = service.getLocator().getCatalogFile() != null
-                val builder = LineageGraphBuilder(index, project, catalogAvailable)
+                val locator = service.getLocator()
+                val catalogAvailable = locator.getCatalogFile() != null
+                val sourcesFile = locator.getTargetDir()?.let { target ->
+                    java.nio.file.Paths.get(target.path, "sources.json")
+                }
+                val freshness = sourcesFile?.let { SourcesFreshnessParser().parseFile(it) } ?: emptyMap()
+                val builder = LineageGraphBuilder(index, project, catalogAvailable, freshness)
                 val graph = builder.build(
                     currentNodeId = modelId,
                     upstreamDepth = selectorUpstreamDepth ?: settings.state.upstreamDepth,

@@ -102,6 +102,29 @@ class DbtHelperConfigurable(private val project: Project) : BoundConfigurable("Y
                     )
                     .comment("How lineage node colors are derived. \"Status\" colors nodes by their last dbt run result.")
             }
+            row("Cluster mode:") {
+                val clusterModes = listOf("None", "Schema", "Folder", "Tag")
+                comboBox(clusterModes)
+                    .bindItem(
+                        {
+                            when (settings.state.defaultClusterMode) {
+                                "schema" -> "Schema"
+                                "folder" -> "Folder"
+                                "tag" -> "Tag"
+                                else -> "None"
+                            }
+                        },
+                        {
+                            settings.state.defaultClusterMode = when (it) {
+                                "Schema" -> "schema"
+                                "Folder" -> "folder"
+                                "Tag" -> "tag"
+                                else -> "none"
+                            }
+                        }
+                    )
+                    .comment("Group lineage nodes into compound clusters by schema, folder, or tag.")
+            }
 }
 
         group("Preview") {
