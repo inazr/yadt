@@ -2,6 +2,7 @@ package com.dbthelper.codeintel
 
 import com.dbthelper.core.DbtUtils
 import com.dbthelper.core.ManifestService
+import com.dbthelper.core.model.ManifestIndex
 import com.intellij.openapi.util.TextRange
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.*
@@ -44,22 +45,33 @@ private class DbtReferenceProvider : PsiReferenceProvider() {
 
         for (ref in patterns.refs) {
             rangeIfContained(ref.nameRange, elemRange)?.let { relRange ->
-                references.add(DbtModelReference(element, relRange, ref.modelName))
+                references.add(DbtPsiReference(element, relRange) { index ->
+                    index.nodes.values
+                        .firstOrNull { (it.name == ref.modelName || it.alias == ref.modelName) && it.resourceType != "test" }
+                        ?.originalFilePath
+                })
             }
         }
 
         for (src in patterns.sources) {
+            val sourceLookup: (ManifestIndex) -> String? = { index ->
+                index.sources.values
+                    .firstOrNull { it.sourceName == src.sourceName && it.name == src.tableName }
+                    ?.originalFilePath
+            }
             rangeIfContained(src.tableNameRange, elemRange)?.let { relRange ->
-                references.add(DbtSourceReference(element, relRange, src.sourceName, src.tableName))
+                references.add(DbtPsiReference(element, relRange, sourceLookup))
             }
             rangeIfContained(src.sourceNameRange, elemRange)?.let { relRange ->
-                references.add(DbtSourceReference(element, relRange, src.sourceName, src.tableName))
+                references.add(DbtPsiReference(element, relRange, sourceLookup))
             }
         }
 
         for (macro in patterns.macros) {
             rangeIfContained(macro.nameRange, elemRange)?.let { relRange ->
-                references.add(DbtMacroReference(element, relRange, macro.macroName))
+                references.add(DbtPsiReference(element, relRange) { index ->
+                    index.macros.values.firstOrNull { it.name == macro.macroName }?.originalFilePath
+                })
             }
         }
 
@@ -76,51 +88,21 @@ private class DbtReferenceProvider : PsiReferenceProvider() {
     }
 }
 
-private class DbtModelReference(
+/**
+ * Resolves a dbt Jinja reference (ref / source / macro call) to its declaring file.
+ * The lookup lambda runs against the current manifest index at resolve time, so
+ * references stay correct across manifest reloads.
+ */
+private class DbtPsiReference(
     element: PsiElement,
     range: TextRange,
-    private val modelName: String
+    private val lookup: (ManifestIndex) -> String?
 ) : PsiReferenceBase<PsiElement>(element, range, true) {
     override fun resolve(): PsiElement? {
         val project = element.project
         val service = ManifestService.getInstance(project)
-        val index = service.getIndex()
         val dbtRoot = service.getLocator().findProjectRoot() ?: return null
-        val node = index.nodes.values.firstOrNull { (it.name == modelName || it.alias == modelName) && it.resourceType != "test" }
-            ?: return null
-        return DbtUtils.resolveFile(project, dbtRoot.path, node.originalFilePath)
-    }
-}
-
-private class DbtSourceReference(
-    element: PsiElement,
-    range: TextRange,
-    private val sourceName: String,
-    private val tableName: String
-) : PsiReferenceBase<PsiElement>(element, range, true) {
-    override fun resolve(): PsiElement? {
-        val project = element.project
-        val service = ManifestService.getInstance(project)
-        val index = service.getIndex()
-        val dbtRoot = service.getLocator().findProjectRoot() ?: return null
-        val source = index.sources.values.firstOrNull {
-            it.sourceName == sourceName && it.name == tableName
-        } ?: return null
-        return DbtUtils.resolveFile(project, dbtRoot.path, source.originalFilePath)
-    }
-}
-
-private class DbtMacroReference(
-    element: PsiElement,
-    range: TextRange,
-    private val macroName: String
-) : PsiReferenceBase<PsiElement>(element, range, true) {
-    override fun resolve(): PsiElement? {
-        val project = element.project
-        val service = ManifestService.getInstance(project)
-        val index = service.getIndex()
-        val dbtRoot = service.getLocator().findProjectRoot() ?: return null
-        val macro = index.macros.values.firstOrNull { it.name == macroName } ?: return null
-        return DbtUtils.resolveFile(project, dbtRoot.path, macro.originalFilePath)
+        val originalFilePath = lookup(service.getIndex()) ?: return null
+        return DbtUtils.resolveFile(project, dbtRoot.path, originalFilePath)
     }
 }
