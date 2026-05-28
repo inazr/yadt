@@ -452,7 +452,7 @@ class LineageTab(
                     .toSet()
 
                 val graphJson = mapper.writeValueAsString(graph)
-                val escaped = graphJson.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                val escaped = escapeJsJson(graphJson)
 
                 ApplicationManager.getApplication().invokeLater {
                     if (!isDisposed) executeJs("renderGraph('$escaped')")
@@ -515,7 +515,7 @@ class LineageTab(
                 val index = service.getIndex()
                 val payload = DocsPayloadBuilder.build(nodeId, index) ?: return@executeOnPooledThread
                 val json = mapper.writeValueAsString(payload)
-                val escaped = json.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                val escaped = escapeJsJson(json)
                 ApplicationManager.getApplication().invokeLater {
                     if (!isDisposed) executeJs("showDocs('$escaped')")
                 }
@@ -540,7 +540,7 @@ class LineageTab(
                 val payload = FreshnessDetailBuilder.build(nodeId, index, freshness, available)
                     ?: return@executeOnPooledThread
                 val json = mapper.writeValueAsString(payload)
-                val escaped = json.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                val escaped = escapeJsJson(json)
                 ApplicationManager.getApplication().invokeLater {
                     if (!isDisposed) executeJs("showFreshnessDetail('$escaped')")
                 }
