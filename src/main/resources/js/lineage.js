@@ -692,7 +692,26 @@
     };
 
     function renderRunResultsHint(map) {
-        // Implemented in Task 9.
+        var hintEl = document.getElementById('run-results-hint');
+        if (!hintEl) return;
+        var count = map ? Object.keys(map).length : 0;
+        if (count === 0) {
+            hintEl.style.display = 'none';
+            return;
+        }
+        var startedSeconds = 0;
+        var startedAtIso = null;
+        Object.keys(map).forEach(function (id) {
+            if (map[id].startedAt) {
+                var t = Date.parse(map[id].startedAt);
+                if (t > startedSeconds) { startedSeconds = t; startedAtIso = map[id].startedAt; }
+            }
+        });
+        var label = startedAtIso
+            ? new Date(startedAtIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : 'recent run';
+        hintEl.textContent = 'Showing results from last run at ' + label + ' (' + count + ' models).';
+        hintEl.style.display = 'block';
     }
 
     window.renderGraph = function (jsonStr) {
