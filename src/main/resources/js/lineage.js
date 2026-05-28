@@ -32,6 +32,21 @@
         skipped: '#C9CED6'
     };
 
+    const ELK_LAYOUT_OPTIONS = {
+        'elk.algorithm': 'layered',
+        'elk.direction': 'RIGHT',
+        'elk.edgeRouting': 'ORTHOGONAL',
+        'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+        'elk.spacing.nodeNode': '40',
+        'elk.layered.crossingMinimization.semiInteractive': 'true',
+        'elk.hierarchyHandling': 'INCLUDE_CHILDREN'
+    };
+
+    function elkDirectionFor(layoutDir) {
+        return layoutDir === 'TB' ? 'DOWN' : 'RIGHT';
+    }
+
     function schemaColor(schema) {
         var h = 0;
         for (var i = 0; i < schema.length; i++) {
@@ -305,13 +320,12 @@
             container: document.getElementById('cy'),
             elements: elements,
             layout: {
-                name: 'dagre',
-                rankDir: layoutDirection || 'LR',
-                nodeSep: 40,
-                rankSep: 80,
-                edgeSep: 20,
-                animate: false,
-                fit: false
+                name: 'elk',
+                fit: false,
+                elk: Object.assign({}, ELK_LAYOUT_OPTIONS, {
+                    'elk.direction': elkDirectionFor(layoutDirection)
+                }),
+                workerUrl: 'elk.worker.js'
             },
             style: [
                 {
@@ -326,23 +340,17 @@
                         'shape': 'round-rectangle'
                     }
                 },
-                (function () {
-                    var style = {
+                {
+                    selector: 'edge',
+                    style: {
                         'width': 1.5,
                         'line-color': '#999',
                         'target-arrow-color': '#999',
                         'target-arrow-shape': 'triangle',
                         'curve-style': edgeCurveStyle || 'bezier',
                         'arrow-scale': 0.8
-                    };
-                    var cs = edgeCurveStyle || 'bezier';
-                    if (cs === 'taxi' || cs === 'round-taxi') {
-                        style['taxi-turn'] = 'data(taxiTurn)';
-                        style['taxi-turn-min-distance'] = 0;
-                        style['taxi-direction'] = 'auto';
                     }
-                    return { selector: 'edge', style: style };
-                })(),
+                },
                 {
                     selector: 'node.dimmed',
                     style: { 'opacity': 0.25 }
@@ -585,41 +593,13 @@
                 });
             }
 
-            // Count siblings per source/target so we can offset taxi-turn per-edge
-            var sourceCounts = {};
-            var targetCounts = {};
-            for (const e of graph.edges) {
-                sourceCounts[e.fromNodeId] = (sourceCounts[e.fromNodeId] || 0) + 1;
-                targetCounts[e.toNodeId] = (targetCounts[e.toNodeId] || 0) + 1;
-            }
-            var sourceIdx = {};
-            var targetIdx = {};
-
             for (const edge of graph.edges) {
                 var isStub = edge.fromNodeId.indexOf('__stub_') === 0 || edge.toNodeId.indexOf('__stub_') === 0;
-
-                // Spread parallel edges by varying taxi-turn as a percentage of the rank span.
-                // Stays within [20%, 80%] so the bend never lands past either endpoint.
-                var sIdx = sourceIdx[edge.fromNodeId] = (sourceIdx[edge.fromNodeId] || 0) + 1;
-                var tIdx = targetIdx[edge.toNodeId] = (targetIdx[edge.toNodeId] || 0) + 1;
-                var sCount = sourceCounts[edge.fromNodeId];
-                var tCount = targetCounts[edge.toNodeId];
-
-                var turnPct = 50;
-                if (sCount > 1 || tCount > 1) {
-                    var fromSrc = sCount > 1 ? (sIdx / (sCount + 1)) : 0.5;
-                    var fromTgt = tCount > 1 ? (tIdx / (tCount + 1)) : 0.5;
-                    // Blend, weight source-spread more (bend originates there)
-                    var blend = (fromSrc * 0.7 + fromTgt * 0.3);
-                    turnPct = Math.round(20 + blend * 60); // 20..80
-                }
-
                 elements.push({
                     data: {
                         id: edge.fromNodeId + '->' + edge.toNodeId,
                         source: edge.fromNodeId,
-                        target: edge.toNodeId,
-                        taxiTurn: turnPct + '%'
+                        target: edge.toNodeId
                     },
                     classes: isStub ? 'stub-edge' : ''
                 });
