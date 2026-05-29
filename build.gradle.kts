@@ -1,6 +1,9 @@
+import org.jetbrains.changelog.Changelog
+
 plugins {
     alias(libs.plugins.kotlin)
     alias(libs.plugins.intellijPlatform)
+    alias(libs.plugins.changelog)
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -45,6 +48,24 @@ intellijPlatform {
             sinceBuild = providers.gradleProperty("sinceBuild")
             untilBuild = providers.gradleProperty("untilBuild").map { it.ifEmpty { null } }
         }
+
+        // "What's New" is rendered from CHANGELOG.md (the changelog plugin converts
+        // the current version's Markdown section to HTML). This overrides any
+        // <change-notes> in plugin.xml, so that tag is no longer kept there.
+        // Rendered eagerly (not in a lazy provider) so the patchPluginXml task stores
+        // a plain String rather than capturing the changelog extension / Project, which
+        // the configuration cache cannot serialize.
+        changeNotes = run {
+            val pluginVersion = providers.gradleProperty("pluginVersion").get()
+            with(changelog) {
+                renderItem(
+                    (getOrNull(pluginVersion) ?: getUnreleased())
+                        .withHeader(false)
+                        .withEmptySections(false),
+                    Changelog.OutputType.HTML,
+                )
+            }
+        }
     }
 
     publishing {
@@ -56,6 +77,12 @@ intellijPlatform {
             recommended()
         }
     }
+}
+
+changelog {
+    // Flat bullet lists per version (no "### Added/Changed" group headers required).
+    groups.empty()
+    repositoryUrl = "https://github.com/inazr/yadt"
 }
 
 tasks {

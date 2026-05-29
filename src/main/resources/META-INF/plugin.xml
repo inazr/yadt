@@ -49,34 +49,8 @@ for <a href="https://www.getdbt.com/">dbt</a> projects directly into your JetBra
 <p><em>This plugin is not affiliated with or endorsed by dbt Labs.</em></p>
     ]]></description>
 
-    <change-notes><![CDATA[
-<h3>0.2.0</h3>
-<ul>
-  <li>Run / Test / Compile buttons in Runner tab for the current model</li>
-  <li>Full-refresh checkbox — automatically shown for incremental models</li>
-  <li>Native OS system notifications when dbt commands finish (configurable in settings)</li>
-  <li>Manifest last updated date on Status tab</li>
-  <li>Plugin icon for Settings → Plugins list (40x40 with transparent center)</li>
-  <li>New setting: "Send system notifications" toggle</li>
-</ul>
-
-<h3>0.1.0</h3>
-<ul>
-  <li>Initial release</li>
-  <li>Interactive lineage graph with Cytoscape.js and dagre layout</li>
-  <li>Code intelligence: autocompletion, go-to-definition, annotations, documentation hover</li>
-  <li>Runner tab: run, test, compile models; dbt show preview; docs generate</li>
-  <li>Full-refresh checkbox for incremental models</li>
-  <li>Target selector from profiles.yml</li>
-  <li>Copy for Target DB / Paste as dbt Refs actions</li>
-  <li>Docs viewer tab with column info and descriptions</li>
-  <li>Native OS notifications (macOS Notification Center) when commands finish</li>
-  <li>Manifest date display on Status tab</li>
-  <li>Support for .sql, .jinja, .jinja2 files</li>
-  <li>Light and dark theme support for lineage graph</li>
-  <li>Configurable lineage depth, edge style, layout direction</li>
-</ul>
-    ]]></change-notes>
+    <!-- change-notes ("What's New") is generated from CHANGELOG.md by the
+         org.jetbrains.changelog Gradle plugin and injected via patchPluginXml. -->
 
     <depends>com.intellij.modules.platform</depends>
 
