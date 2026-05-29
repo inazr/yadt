@@ -1,7 +1,13 @@
 package com.dbthelper.core
 
+import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.core.model.ManifestIndex
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import java.io.File
 
 /**
  * Resolves a dbt selector to a set of node unique-ids in two ways:
@@ -15,6 +21,60 @@ import com.intellij.openapi.project.Project
  * [project] may be null in unit tests that only exercise [resolveLive].
  */
 class DbtSelectionResolver(private val project: Project?) {
+
+    private val logger = Logger.getInstance(DbtSelectionResolver::class.java)
+    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
+
+    /**
+     * Authoritatively resolve [selector] via `dbt ls` on a daemon background
+     * thread, then deliver the matched ids on the EDT via [onResult]. Silent by
+     * design: it never touches the Runner tab, run-state, or output log — it only
+     * reuses DbtCommandRunner for executable discovery. No-op (logged) on failure.
+     */
+    fun resolveViaCli(selector: String, onResult: (Set<String>) -> Unit) {
+        val proj = project ?: return
+        val dbt = DbtCommandRunner(proj).findDbtExecutable()
+        val root = DbtProjectLocator(proj).findProjectRoot()?.path ?: return
+        Thread {
+            try {
+                val pb = ProcessBuilder(
+                    dbt, "ls", "--quiet",
+                    "--select", selector,
+                    "--output", "json",
+                    "--output-keys", "unique_id"
+                ).directory(File(root))
+                pb.redirectError(ProcessBuilder.Redirect.DISCARD)
+                System.getenv("PATH")?.let { pb.environment()["PATH"] = it }
+                System.getenv("HOME")?.let { pb.environment()["HOME"] = it }
+                pb.environment()["NO_COLOR"] = "1"
+
+                val ids = LinkedHashSet<String>()
+                val proc = pb.start()
+                proc.inputStream.bufferedReader().forEachLine { line ->
+                    val t = line.trim()
+                    if (t.startsWith("{")) {
+                        try {
+                            mapper.readTree(t).path("unique_id").asText()
+                                .takeIf { it.isNotEmpty() }
+                                ?.let { ids.add(it) }
+                        } catch (_: Exception) { /* skip non-JSON / partial line */ }
+                    }
+                }
+                val code = proc.waitFor()
+                if (code == 0) {
+                    ApplicationManager.getApplication().invokeLater { onResult(ids) }
+                } else {
+                    logger.warn("dbt ls exited $code for selector '$selector'")
+                }
+            } catch (e: Exception) {
+                logger.warn("dbt ls failed for selector '$selector'", e)
+            }
+        }.apply {
+            name = "dbt-selection-resolver"
+            isDaemon = true
+            start()
+        }
+    }
 
     /**
      * Resolve [selector] against [index] without touching the CLI.
