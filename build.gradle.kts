@@ -38,7 +38,7 @@ dependencies {
 
 intellijPlatform {
     pluginConfiguration {
-        id = "com.dbthelper"
+        id = "com.inazr.yadt"
         name = providers.gradleProperty("pluginName")
         version = providers.gradleProperty("pluginVersion")
         ideaVersion {
