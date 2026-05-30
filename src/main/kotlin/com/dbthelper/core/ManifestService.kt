@@ -79,13 +79,22 @@ class ManifestService(private val project: Project) : Disposable {
             val relationMap = mutableMapOf<String, String>()
 
             for ((id, node) in nodes) {
+                val path = node.originalFilePath.toUnixPath()
+                filePathMap[path] = id
+                node.relationName?.let { relationMap[it] = id }
+
+                // Tests are not lineage nodes — they hang off the model/source they
+                // validate. Wiring them into the parent/child maps makes every tested
+                // node sprout phantom "+ N more" children that the graph filters out of
+                // rendering, so the stub shows a wrong count and can never be expanded.
+                // Keep them in `nodes` (DocsPayloadBuilder lists a node's tests) but out
+                // of the adjacency maps that drive the lineage graph.
+                if (node.resourceType == "test" || node.resourceType == "unit_test") continue
+
                 parentMap[id] = node.dependsOnNodes
                 for (parentId in node.dependsOnNodes) {
                     childMapBuilder.getOrPut(parentId) { mutableListOf() }.add(id)
                 }
-                val path = node.originalFilePath.toUnixPath()
-                filePathMap[path] = id
-                node.relationName?.let { relationMap[it] = id }
             }
 
             for ((id, source) in sources) {

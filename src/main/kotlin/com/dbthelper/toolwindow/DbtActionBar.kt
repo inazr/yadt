@@ -152,6 +152,8 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
         updateGoEnabled()
     }
 
+    fun currentSelector(): String = selectorField.text.trim()
+
     fun isRunning(): Boolean = running
 
     fun currentTarget(): String = (targetCombo.selectedItem as? String).orEmpty()

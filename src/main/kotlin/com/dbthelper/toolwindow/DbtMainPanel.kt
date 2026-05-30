@@ -81,6 +81,11 @@ class DbtMainPanel(
         connection.subscribe(ManifestUpdateListener.TOPIC, object : ManifestUpdateListener {
             override fun onManifestUpdated(index: ManifestIndex) {
                 ApplicationManager.getApplication().invokeLater {
+                    // Only seed the selector from the open file when it's still empty
+                    // (the initial async parse populating it on startup). A reparse also
+                    // fires after every run; auto-filling then would clobber a selector
+                    // the user typed (e.g. "tag:generic_order") with the open file's model.
+                    if (actionBar.currentSelector().isNotEmpty()) return@invokeLater
                     FileEditorManager.getInstance(project).selectedFiles.firstOrNull()
                         ?.let { autoFillFromFile(it) }
                 }
