@@ -8,6 +8,8 @@ A JetBrains IDE plugin (`com.inazr.yadt`, marketed as **YADT — Yet Another dbt
 
 Stack: Kotlin 2.0 on JVM 21, IntelliJ Platform Gradle Plugin **2.x** (`org.jetbrains.intellij.platform` — not the legacy `org.jetbrains.intellij`). Versions are centralized in `gradle/libs.versions.toml`; plugin metadata lives in `gradle.properties`.
 
+**Source package ≠ plugin id.** All Kotlin lives under `src/main/kotlin/com/dbthelper/…` (the original package, never repackaged), even though the plugin id and `pluginGroup` are `com.inazr.yadt`. Don't look for a `com/inazr` source dir — there isn't one.
+
 
 ## Claude Coding Rules
 1. YAGNI
@@ -18,13 +20,13 @@ Stack: Kotlin 2.0 on JVM 21, IntelliJ Platform Gradle Plugin **2.x** (`org.jetbr
 ## Common commands
 
 ```bash
-./gradlew buildPlugin        # produces build/distributions/dbt-helper-<version>.zip
+./gradlew buildPlugin        # produces build/distributions/yadt-<version>.zip
 ./gradlew runIde             # launches a sandbox IDE with the plugin installed
 ./gradlew verifyPlugin       # runs IntelliJ Plugin Verifier against `recommended()` IDEs
 ./gradlew publishPlugin      # uploads to JetBrains Marketplace (needs PUBLISH_TOKEN env var)
 ```
 
-Tests live under `src/test/kotlin` and run via `./gradlew test`. Coverage is sparse — currently only `SearchQueryParserTest`, `SearchIndexBuilderTest`, and `RunResultsParserTest` — so don't assume a change is safe just because tests pass. Place new tests alongside the existing ones; the Kotlin/Gradle defaults will pick them up.
+Tests live under `src/test/kotlin` and run via `./gradlew test`. Coverage is sparse — currently only `SearchQueryParserTest`, `SearchIndexBuilderTest`, `RunResultsParserTest`, `DbtSelectionResolverTest`, and `LineageGraphBuilderTest` — so don't assume a change is safe just because tests pass. Place new tests alongside the existing ones; the Kotlin/Gradle defaults will pick them up.
 
 To bump the plugin version, edit `pluginVersion` in `gradle.properties` (it is the single source of truth — `build.gradle.kts` reads it via `providers.gradleProperty`).
 
@@ -47,7 +49,7 @@ This is the wiring file — every Kotlin class is registered here as a service, 
 `DbtJinjaUtils.kt` is the regex-based shared parser (`ref()`, `source()`, `macro()` calls + completion context detection). Every code-intel class delegates token recognition here rather than parsing PSI — this is what lets the same code run unchanged across `TEXT`/`Jinja2`/`SQL` languages.
 
 ### `toolwindow/` — the bottom tool window
-Two tabs assembled in `DbtToolWindowFactory`:
+Two tabs assembled in `DbtMainPanel` (which `DbtToolWindowFactory` instantiates):
 - **Lineage** (`LineageTab`) — JCEF webview hosting `resources/js/lineage.html` + `lineage.js` (Cytoscape.js with the ELK layout, run in a Web Worker). Kotlin↔JS messaging is how clicks/navigation are wired. The vendored JS files (`cytoscape.min.js`, `cytoscape-elk.js`, `elk.bundled.js`, `elk.worker.js`) are deliberate — no npm/CDN at runtime.
 - **Runner** (`DbtRunnerTab`) — uses `actions/DbtCommandRunner` to spawn the dbt CLI; streams stdout/stderr to a log component.
 
@@ -56,6 +58,12 @@ The factory sets the `ToolWindowContentUi.HIDE_ID_LABEL` client property so the 
 ### `actions/` and `listeners/`
 - `CopyWithRefsReplacedAction` / `PasteAsRefsAction` are bound to Ctrl/Cmd+Shift+C/V, and have `<add-to-group>` entries in `EditorPopupMenu` and `EditMenu`. If you add new editor actions, follow the same pattern.
 - `DbtFileListener` tracks the current editor to drive the docs sidebar; `ManifestFileWatcher` invalidates the cache on VFS changes to `manifest.json`. Both are registered in `<projectListeners>` in `plugin.xml`.
+
+### Run status, freshness & selectors — what colors the lineage cards
+- **Run status has two sources that must agree on one vocabulary** (`success | warn | error | skipped`). `DbtRunStatusParser` is a stateless parser for the *live* human-readable `run`/`build`/`test` log lines (maps a printed `schema.identifier` → status as dbt streams). `RunResultsReconciler` reads the *authoritative* `target/run_results.json` afterwards. When a node gets multiple contributions, **worst status wins** (`error > warn > success > skipped`).
+- **Test results are NOT rolled into the node's color.** A model's bar reflects only its own build/run status; failing tests surface as the separate "!" triangle overlay (`LineageTab.pushRunResultsToJs`), so a green model with a failing test stays green + red triangle. Don't "fix" this by merging test status into the reconciler.
+- `RunResultsWatcher` (started by `RunResultsWatcherStarter`, a `ProjectActivity`) polls/watches `run_results.json` and fires `RunResultsUpdateListener`. `SourcesFreshnessParser` + `FreshnessDetailBuilder` do the equivalent for `sources.json` freshness.
+- **Selector parsing is deliberately split.** `DbtSelectorParser` handles only the narrow graph-operator grammar we drive the graph with (`+model`, `2+model+3`, etc.) and returns `null` for anything richer (wildcards, `tag:`, `path:`, unions) rather than guessing. `DbtSelectionResolver` resolves a selector to a flat unique-id set two ways: `resolveLive` (in-memory, updates as you type) and `resolveViaCli` (authoritative `dbt ls` for any selector dbt understands). Graph operators are expanded during resolution, so the renderer only ever receives a fully-expanded id set.
 
 ### `settings/`
 `DbtHelperSettings` is a `PersistentStateComponent` (project-level). `SettingsChangeListener` is fired by `DbtHelperConfigurable` after Apply — UI tabs subscribe to repaint when, e.g., lineage depth changes.

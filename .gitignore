@@ -17,5 +17,6 @@ Thumbs.db
 
 # Claude
 .claude/
+.claude.local.md
 dbt-lineage-plugin-spec.md
 docs/
