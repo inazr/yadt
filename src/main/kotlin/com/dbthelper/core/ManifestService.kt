@@ -1,6 +1,7 @@
 package com.dbthelper.core
 
 import com.dbthelper.core.model.*
+import com.dbthelper.settings.DbtHelperSettings
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -46,26 +47,33 @@ class ManifestService(private val project: Project) : Disposable {
         isLoading = true
         lastError = null
         try {
-            // Parse all dbt projects found in the workspace
-            val dbtRoots = locator.findAllDbtRoots()
-            if (dbtRoots.isEmpty()) {
+            // Honor the "Project root override" setting so a multi-project workspace
+            // can't silently load another project's manifest. With no override we keep
+            // the original behaviour: scan every discovered root. (findProjectRoot is the
+            // same override-aware resolution DbtCommandRunner uses, so the parsed manifest
+            // and the runner now agree on which project is active.)
+            val overrideConfigured = DbtHelperSettings.getInstance(project).state.dbtProjectRootOverride.isNotBlank()
+            val candidateRoots = candidateManifestRoots(
+                overrideConfigured = overrideConfigured,
+                overrideRoot = if (overrideConfigured) locator.findProjectRoot() else null,
+                discoveredRoots = locator.findAllDbtRoots(),
+            )
+            if (candidateRoots.isEmpty()) {
                 cachedIndex = ManifestIndex.EMPTY
                 lastError = "No dbt projects found"
                 return
             }
 
-            val allManifests = dbtRoots.mapNotNull { root ->
+            // First root with a built manifest (an override yields a single-element list).
+            // TODO: support multi-project manifest merging
+            val manifestFile = candidateRoots.firstNotNullOfOrNull { root ->
                 root.findChild("target")?.findChild("manifest.json")
             }
-            if (allManifests.isEmpty()) {
+            if (manifestFile == null) {
                 cachedIndex = ManifestIndex.EMPTY
                 lastError = "manifest.json not found"
                 return
             }
-
-            // Merge all manifests — for now just parse the first one
-            // TODO: support multi-project manifest merging
-            val manifestFile = allManifests.first()
             val root = manifestFile.inputStream.use { mapper.readTree(it) }
 
             val nodes = parseNodes(root.get("nodes"))
@@ -350,5 +358,16 @@ class ManifestService(private val project: Project) : Disposable {
 
         fun getInstance(project: Project): ManifestService =
             project.service<ManifestService>()
+
+        /**
+         * Roots to consider for manifest parsing. A configured override pins parsing to
+         * that single project; otherwise every discovered root is a candidate. This is
+         * the fix's core decision — see the call site in [doParse].
+         */
+        internal fun <T> candidateManifestRoots(
+            overrideConfigured: Boolean,
+            overrideRoot: T?,
+            discoveredRoots: List<T>,
+        ): List<T> = if (overrideConfigured) listOfNotNull(overrideRoot) else discoveredRoots
     }
 }
