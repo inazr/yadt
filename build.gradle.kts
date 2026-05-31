@@ -68,6 +68,15 @@ intellijPlatform {
         }
     }
 
+    // Marketplace-preferred plugin signing. Reads PEM material from env vars so no
+    // secrets live in the repo; signPlugin runs automatically before publishPlugin.
+    // Generate the key/cert per https://plugins.jetbrains.com/docs/intellij/plugin-signing.html
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
     }
