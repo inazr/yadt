@@ -11,6 +11,8 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 ## Features
 
 - **Lineage graph** — interactive DAG of your dbt models with click-to-explore navigation. Single click previews a model and its dependencies; double click refocuses the graph and opens the file.
+- **Run status & freshness** — color lineage nodes by their last `dbt run`/`build` result (the default), with test-failure badges and source-freshness state, updated live as commands run.
+- **Selector-driven graph** — type a dbt selector (`tag:`, `path:`, `source:`, `+model`, `model+`, globs) to drive what the graph shows; resolved live or via `dbt ls`.
 - **Docs sidebar** — columns, tests, SQL, and metadata for the selected model, side-by-side with the graph.
 - **Code intelligence** — autocomplete and go-to-definition for `ref()`, `source()`, and `macro()`; hover for column info; warnings on unresolved references. Works in `.sql` and Jinja files.
 - **Runner** — run, test, compile, preview, and regenerate docs without leaving the IDE. Target selector and live output log.
@@ -43,15 +45,23 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| dbt executable path | Path to dbt CLI binary | `dbt` (auto-detected) |
-| Project root override | Manual dbt project root | auto-detect |
-| Active target | Target from profiles.yml | default target |
-| Upstream/Downstream depth | Lineage graph depth | 5 / 5 |
-| Edge style | Lineage edge rendering | round-taxi |
-| Layout direction | Graph orientation | Left → Right |
-| Preview row limit | Max rows for `dbt show` | 10 |
-| Show exposures | Display exposures in lineage | on |
-| System notifications | Native OS notifications | on |
+| dbt executable path | Path to the dbt CLI binary | `dbt` (auto-detected from PATH) |
+| Project root override | Absolute path to the dbt project root | auto-detect from `dbt_project.yml` |
+| Active target | Target from `profiles.yml` used for compilation | default target |
+| Upstream depth | Parent levels shown above the current node (1–20) | 2 |
+| Downstream depth | Child levels shown below the current node (1–20) | 1 |
+| Edge style | bezier, taxi, round-taxi, segments, straight, unbundled-bezier, haystack | round-taxi |
+| Layout direction | Left → Right / Top → Bottom / Right → Left / Bottom → Top | Left → Right |
+| Node color | Resource type / Schema name / Status | Status |
+| Cluster mode | None / Schema / Folder / Tag | Schema |
+| Preview row limit | Max rows returned by `dbt show` (1–1000) | 10 |
+| Auto-open tool window on SQL file | Show the YADT panel when a `.sql` file is opened | on |
+| Show exposures in lineage | Display dbt exposures in the graph | on |
+| Show test failure badge | Red failure-count badge on cards with failed tests | on |
+| Send system notifications | Native OS notification when dbt commands finish | on |
+| Colored dbt output | Pass `--use-colors`; render ANSI in the Runner panel | off |
+| Auto-parse on save | Background `dbt parse` after saving a model/YAML | on |
+| Auto-parse also for dbt Cloud CLI | Also auto-parse via dbt Cloud CLI (network per save) | off |
 
 ---
 
@@ -83,7 +93,7 @@ To run a development instance:
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — © 2026 Ruslan (original author) and inazr (YADT fork).
 
 ---
 
