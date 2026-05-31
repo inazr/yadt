@@ -2,8 +2,17 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-31
+
+- Drive the lineage graph by typing a dbt selector — supports `tag:`, `path:`, `source:`, fqn and glob patterns, plus graph operators (`+model`, `2+model`, `model+3`); resolved live as you type, falling back to `dbt ls` for richer selectors
+- Press Enter in the selector field to apply the selection; a "no nodes match" hint appears when a selector resolves to nothing
+- Opening a schema `.yml` focuses all models it documents
+- Failing or warning tests now show as a "!" triangle on model cards, kept separate from build-status color (a green model with a failing test stays green with a red triangle)
+- Run-status colors are now confined to status mode, which is the new default
+
 ## [0.2.1] - 2026-05-29
 
+- Forked from dbt-helper after 0.2.0 into a standalone plugin (new id `com.inazr.yadt`) — installs no longer receive the upstream Marketplace plugin's releases as updates
 - Lineage graph now adapts to your full IDE theme (any Look-and-Feel), not just light/dark
 - Run-status highlighting now matches exactly the models `dbt build --select <selector>` will build
 - Run controls (target, verb, flags, selector, Run) are now always visible above the Lineage and Runner tabs
@@ -33,3 +42,9 @@
 - Support for .sql, .jinja, .jinja2 files
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
+
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/inazr/yadt/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/inazr/yadt/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/inazr/yadt/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/inazr/yadt/commits/v0.1.0
