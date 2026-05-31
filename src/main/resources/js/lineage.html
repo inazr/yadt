@@ -534,21 +534,19 @@
         }
         .card-failure-badge {
             position: absolute;
-            top: 4px;
-            right: 6px;
-            min-width: 14px;
+            top: 3px;
+            right: 5px;
+            width: 14px;
             height: 14px;
-            padding: 0 4px;
-            border-radius: 7px;
-            background: #F85149;
-            color: #fff;
-            font-size: 10px;
-            font-weight: 700;
-            line-height: 14px;
-            text-align: center;
+            line-height: 0;
             pointer-events: none;
+            color: #F85149;
         }
+        .card-failure-badge.sev-error { color: #F85149; }
+        .card-failure-badge.sev-warn  { color: #E3B341; }
         .card-node.no-failure-badge .card-failure-badge { display: none; }
+        .tt-test-error { color: #F85149; }
+        .tt-test-warn  { color: #E3B341; }
         .run-results-hint {
             position: absolute;
             top: 44px;

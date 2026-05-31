@@ -10,9 +10,12 @@ import java.io.File
  * { uniqueId -> status } map for the lineage cards.
  *
  * - Model / seed / snapshot results color their own node directly.
- * - Test results are rolled up onto the model(s) they depend on.
- * - When a node gets several contributions (e.g. its own build result plus a
- *   failed test on `build`), the worst status wins: error > warn > success > skipped.
+ * - Test results are NOT rolled up here: a model's bar color reflects its own
+ *   build/run status only. Test outcomes are surfaced separately as the "!"
+ *   triangle overlay (see LineageTab.pushRunResultsToJs), so a green-built model
+ *   with a failing test stays green with a red triangle rather than turning red.
+ * - When a node gets several contributions the worst status wins:
+ *   error > warn > success > skipped.
  *
  * Statuses returned use the shared vocabulary: success | warn | error | skipped.
  */
@@ -57,19 +60,11 @@ object RunResultsReconciler {
 
         for (r in results) {
             val uniqueId = r.path("unique_id").asText(null) ?: continue
+            // Tests aren't rendered as nodes and don't color a model's bar; their
+            // outcomes are shown via the triangle overlay instead.
+            if (uniqueId.startsWith("test.") || uniqueId.startsWith("unit_test.")) continue
             val status = mapStatus(r.path("status").asText("")) ?: continue
-
-            if (uniqueId.startsWith("test.")) {
-                // Roll up onto the buildable models this test depends on.
-                val parents = index.parentMap[uniqueId] ?: emptyList()
-                for (parentId in parents) {
-                    if (index.nodes[parentId]?.resourceType in BUILDABLE_TYPES) {
-                        contribute(parentId, status)
-                    }
-                }
-            } else {
-                contribute(uniqueId, status)
-            }
+            contribute(uniqueId, status)
         }
         return acc
     }

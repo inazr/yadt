@@ -156,6 +156,15 @@
     let nodeStatus = {}; // uniqueId -> status string (see STATUS_BAR_COLORS keys)
     var nodeFailures = {}; // uniqueId -> failure count (integer)
     var nodeFailureMessages = {}; // uniqueId -> failure message string
+    // uniqueId -> { status:'error'|'warn', failed:int, warned:int } from the last run's
+    // tests, rolled onto the nodes they validate. Drives the "!" triangle overlay.
+    var nodeTestStatus = {};
+    // Warning triangle with "!", tinted via the .sev-error / .sev-warn card classes.
+    var TEST_BADGE_ICON =
+        '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">'
+        + '<path d="M8 1.3 L15.2 14.2 H0.8 Z" fill="currentColor"/>'
+        + '<rect x="7.2" y="5.4" width="1.6" height="4.6" rx="0.8" fill="#fff"/>'
+        + '<circle cx="8" cy="11.7" r="0.95" fill="#fff"/></svg>';
     var selectedIds = new Set();
     let activeDrag = null;
     var themeEdgeColor = null; // last themed edge color, re-applied on every render
@@ -738,6 +747,9 @@
 
             // Build HTML cards over cytoscape
             buildNodeCards();
+            // Newly built cards start without a test triangle; re-apply from the
+            // retained nodeTestStatus so triangles survive a re-render (selector change).
+            repaintAllFailureBadges();
             cy.on('pan zoom position layoutstop', syncNodeCards);
             cy.on('pan zoom layoutstop', drawMinimap);
 
@@ -830,6 +842,16 @@
         if (data.database) html += '<br>Database: ' + escapeHtml(data.database);
         if (data.materialization) html += '<br>Materialization: ' + data.materialization;
         if (data.description) html += '<br>' + escapeHtml(data.description.substring(0, 150));
+        var ts = nodeTestStatus[data.id];
+        if (ts) {
+            var parts = [];
+            if (ts.failed) parts.push(ts.failed + ' test' + (ts.failed === 1 ? '' : 's') + ' failed');
+            if (ts.warned) parts.push(ts.warned + ' warning' + (ts.warned === 1 ? '' : 's'));
+            if (parts.length) {
+                var cls = ts.status === 'error' ? 'tt-test-error' : 'tt-test-warn';
+                html += '<br><span class="' + cls + '">⚠ ' + parts.join(', ') + '</span>';
+            }
+        }
         html += '</div>';
         tooltipEl.innerHTML = html;
         tooltipEl.style.display = 'block';
@@ -871,13 +893,26 @@
         Object.keys(nodeCards).forEach(function (id) {
             var card = nodeCards[id];
             if (!card || card.classList.contains('stub')) return;
-            var n = nodeFailures[id] || 0;
+            var ts = nodeTestStatus[id];
             var badge = card.querySelector('.card-failure-badge');
-            if (badge) badge.textContent = n > 0 ? String(n) : '';
-            card.classList.toggle('no-failure-badge', !(showBadges && n > 0));
+            var show = showBadges && !!ts;
+            if (badge) {
+                badge.innerHTML = show ? TEST_BADGE_ICON : '';
+                badge.classList.toggle('sev-error', show && ts.status === 'error');
+                badge.classList.toggle('sev-warn', show && ts.status === 'warn');
+            }
+            card.classList.toggle('no-failure-badge', !show);
         });
     }
     window.repaintAllFailureBadges = repaintAllFailureBadges;
+
+    // Receive { nodeId: { status, failed, warned } } and repaint the triangle overlay.
+    window.setTestStatuses = function (jsonStr) {
+        try {
+            nodeTestStatus = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : (jsonStr || {});
+            repaintAllFailureBadges();
+        } catch (e) { console.error('setTestStatuses error:', e); }
+    };
 
     // Merge {uniqueId: status} into the store; live-update cards if in status mode.
     window.setNodeStatuses = function (jsonStr) {
@@ -908,6 +943,10 @@
         try {
             var ids = typeof idsJson === 'string' ? JSON.parse(idsJson) : idsJson;
             ids.forEach(function (id) { nodeStatus[id] = 'queued'; });
+            // A new run is starting: drop the previous run's test triangles so they
+            // don't linger as stale until fresh run_results.json arrives.
+            nodeTestStatus = {};
+            repaintAllFailureBadges();
             // Status is always recorded, but only painted in status color mode.
             if (currentColorMode === 'status') repaintAllStatusCards();
         } catch (e) { console.error('seedQueuedStatuses error:', e); }

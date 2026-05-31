@@ -894,14 +894,53 @@ class LineageTab(
                 "executionTime" to r.executionTime
             )
         })
+        val testPayload = mapper.writeValueAsString(rollUpTestOutcomes(results))
         ApplicationManager.getApplication().invokeLater {
             if (!isDisposed) {
                 browser.cefBrowser.executeJavaScript(
-                    "window.setRunResults && window.setRunResults(${payload});",
+                    "window.setRunResults && window.setRunResults(${payload});" +
+                        "window.setTestStatuses && window.setTestStatuses(${testPayload});",
                     browser.cefBrowser.url, 0
                 )
             }
         }
+    }
+
+    /**
+     * Attribute test results to the nodes they validate, for the "!" triangle overlay.
+     * Each test's outcome (error/warn) is rolled onto every node it depends on; a node's
+     * triangle is red if any test errored, else yellow if any warned. Returns
+     * { nodeId -> { status: "error"|"warn", failed: Int, warned: Int } }.
+     */
+    private fun rollUpTestOutcomes(
+        results: Map<String, com.dbthelper.actions.RunResult>
+    ): Map<String, Map<String, Any>> {
+        val index = ManifestService.getInstance(project).getIndex()
+        val failed = HashMap<String, Int>()
+        val warned = HashMap<String, Int>()
+        for ((id, r) in results) {
+            if (!id.startsWith("test.") && !id.startsWith("unit_test.")) continue
+            val bucket = when (r.status) {
+                com.dbthelper.actions.RunStatus.ERROR -> failed
+                com.dbthelper.actions.RunStatus.WARN -> warned
+                else -> continue
+            }
+            // parentMap excludes tests, so read the tested nodes off the test node itself.
+            for (parentId in index.nodes[id]?.dependsOnNodes.orEmpty()) {
+                bucket[parentId] = (bucket[parentId] ?: 0) + 1
+            }
+        }
+        val out = HashMap<String, Map<String, Any>>()
+        (failed.keys + warned.keys).forEach { nodeId ->
+            val f = failed[nodeId] ?: 0
+            val w = warned[nodeId] ?: 0
+            out[nodeId] = mapOf(
+                "status" to if (f > 0) "error" else "warn",
+                "failed" to f,
+                "warned" to w
+            )
+        }
+        return out
     }
 
     private fun escapeJsJson(json: String): String =
