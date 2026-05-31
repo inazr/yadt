@@ -77,6 +77,7 @@ class ManifestService(private val project: Project) : Disposable {
             val childMapBuilder = mutableMapOf<String, MutableList<String>>()
             val filePathMap = mutableMapOf<String, String>()
             val relationMap = mutableMapOf<String, String>()
+            val patchPathMapBuilder = mutableMapOf<String, MutableList<String>>()
 
             for ((id, node) in nodes) {
                 val path = node.originalFilePath.toUnixPath()
@@ -94,6 +95,17 @@ class ManifestService(private val project: Project) : Disposable {
                 parentMap[id] = node.dependsOnNodes
                 for (parentId in node.dependsOnNodes) {
                     childMapBuilder.getOrPut(parentId) { mutableListOf() }.add(id)
+                }
+
+                // Map the yml that documents this node (its patch_path) -> node id, so
+                // opening a schema.yml can focus all the models/seeds/snapshots it covers.
+                if (node.resourceType in DOCUMENTED_NODE_TYPES) {
+                    node.patchPath?.let { pp ->
+                        val rel = pp.substringAfter("://").toUnixPath()
+                        if (rel.isNotEmpty()) {
+                            patchPathMapBuilder.getOrPut(rel) { mutableListOf() }.add(id)
+                        }
+                    }
                 }
             }
 
@@ -122,7 +134,8 @@ class ManifestService(private val project: Project) : Disposable {
                 parentMap = parentMap,
                 childMap = childMapBuilder.mapValues { it.value.toList() },
                 filePathMap = filePathMap,
-                relationMap = relationMap
+                relationMap = relationMap,
+                patchPathMap = patchPathMapBuilder.mapValues { it.value.toList() }
             )
 
             // Merge catalog if available
@@ -145,6 +158,17 @@ class ManifestService(private val project: Project) : Disposable {
     fun findCurrentModelId(file: VirtualFile): String? {
         val relativePath = locator.getRelativePath(file) ?: return null
         return cachedIndex.findByFilePath(relativePath)
+    }
+
+    /**
+     * Ids of the model/seed/snapshot nodes documented by [file] when it is a schema
+     * yml (resolved via each node's patch_path). Empty for non-yml files, ymls that
+     * only define sources/tests, or files outside the project.
+     */
+    fun findDocumentedNodeIds(file: VirtualFile): List<String> {
+        if (file.extension?.lowercase() !in setOf("yml", "yaml")) return emptyList()
+        val relativePath = locator.getRelativePath(file) ?: return emptyList()
+        return cachedIndex.getDocumentedNodes(relativePath)
     }
 
     /** Resolve a plain dbt model name to its node uniqueId, or null if not found. */
@@ -321,6 +345,9 @@ class ManifestService(private val project: Project) : Disposable {
     }
 
     companion object {
+        // Resource types that are "documented" by a schema yml via patch_path.
+        private val DOCUMENTED_NODE_TYPES = setOf("model", "seed", "snapshot")
+
         fun getInstance(project: Project): ManifestService =
             project.service<ManifestService>()
     }

@@ -306,6 +306,17 @@ class LineageTab(
         pushRegenerateAttention()
         val service = ManifestService.getInstance(project)
         val index = service.getIndex()
+
+        // A schema yml: focus the combined lineage of every model/seed/snapshot it
+        // documents (reuses the multi-node selection renderer). Source/test-only ymls
+        // document nothing, so leave the graph as-is instead of focusing an inline test.
+        val ext = file.extension?.lowercase()
+        if (ext == "yml" || ext == "yaml") {
+            val documented = service.findDocumentedNodeIds(file).toSet()
+            if (documented.isNotEmpty() && documented != selectionIds) focusSelection(documented)
+            return
+        }
+
         val modelId = service.findCurrentModelId(file)
 
         // If current model is a source/exposure in the same file, don't override

@@ -100,8 +100,22 @@ class DbtMainPanel(
 
     private fun autoFillFromFile(file: VirtualFile) {
         val service = ManifestService.getInstance(project)
+        val index = service.getIndex()
+        val ext = file.extension?.lowercase()
+
+        if (ext == "yml" || ext == "yaml") {
+            // A schema yml documents one or more models/seeds/snapshots; fill the
+            // selector with all of them (space-separated = a valid multi-node dbt
+            // selector). For source-only/test-only ymls there are none, so leave the
+            // selector untouched rather than resolving the file to an inline test.
+            val names = service.findDocumentedNodeIds(file)
+                .mapNotNull { index.nodes[it]?.name }.sorted()
+            if (names.isNotEmpty()) actionBar.setSelector(names.joinToString(" "))
+            return
+        }
+
         val modelId = service.findCurrentModelId(file) ?: return
-        val node = service.getIndex().nodes[modelId] ?: return
+        val node = index.nodes[modelId] ?: return
         actionBar.setSelector(node.name)
     }
 

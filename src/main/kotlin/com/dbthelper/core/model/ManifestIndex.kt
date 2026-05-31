@@ -10,7 +10,10 @@ data class ManifestIndex(
     val parentMap: Map<String, List<String>> = emptyMap(),
     val childMap: Map<String, List<String>> = emptyMap(),
     val filePathMap: Map<String, String> = emptyMap(),
-    val relationMap: Map<String, String> = emptyMap()
+    val relationMap: Map<String, String> = emptyMap(),
+    // Normalized yml path -> ids of buildable nodes (model/seed/snapshot) whose
+    // patch_path points at that yml, i.e. the resources the file documents.
+    val patchPathMap: Map<String, List<String>> = emptyMap()
 ) {
     companion object {
         val EMPTY = ManifestIndex()
@@ -32,4 +35,8 @@ data class ManifestIndex(
     fun getUpstream(uniqueId: String): List<String> = parentMap[uniqueId] ?: emptyList()
 
     fun getDownstream(uniqueId: String): List<String> = childMap[uniqueId] ?: emptyList()
+
+    /** Ids of model/seed/snapshot nodes documented by the yml at [relativePath]. */
+    fun getDocumentedNodes(relativePath: String): List<String> =
+        patchPathMap[relativePath.toUnixPath()] ?: emptyList()
 }

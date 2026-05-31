@@ -32,6 +32,11 @@ class DocsTab(
     @Volatile
     private var currentModelId: String? = null
 
+    // Set when a schema yml documents 2+ models/seeds/snapshots: the sidebar then
+    // renders an index of them instead of a single node's docs.
+    @Volatile
+    private var currentDocIds: List<String> = emptyList()
+
     @Volatile
     private var isDisposed = false
 
@@ -58,12 +63,7 @@ class DocsTab(
 
         connection.subscribe(CurrentModelListener.TOPIC, object : CurrentModelListener {
             override fun onCurrentModelChanged(file: VirtualFile) {
-                val service = ManifestService.getInstance(project)
-                val modelId = service.findCurrentModelId(file)
-                if (modelId != null && modelId != currentModelId) {
-                    currentModelId = modelId
-                    refreshDocs()
-                }
+                if (resolveForFile(file)) refreshDocs()
             }
         })
 
@@ -108,9 +108,37 @@ class DocsTab(
 
     private fun resolveCurrentModel() {
         val file = FileEditorManager.getInstance(project).selectedFiles.firstOrNull() ?: return
+        resolveForFile(file)
+    }
+
+    /**
+     * Point the sidebar at the right target for [file], returning whether it changed.
+     * A schema yml resolves to the models/seeds/snapshots it documents: 2+ → an index
+     * view, exactly 1 → that node's docs. A source/test-only yml documents nothing, so
+     * the current view is left untouched (rather than resolving to an inline test).
+     */
+    private fun resolveForFile(file: VirtualFile): Boolean {
         val service = ManifestService.getInstance(project)
-        val modelId = service.findCurrentModelId(file)
-        if (modelId != null) currentModelId = modelId
+        val ext = file.extension?.lowercase()
+        if (ext == "yml" || ext == "yaml") {
+            val documented = service.findDocumentedNodeIds(file)
+            return when {
+                documented.size >= 2 ->
+                    if (documented == currentDocIds) false
+                    else { currentDocIds = documented; currentModelId = null; true }
+                documented.size == 1 -> setSingle(documented[0])
+                else -> false
+            }
+        }
+        val modelId = service.findCurrentModelId(file) ?: return false
+        return setSingle(modelId)
+    }
+
+    private fun setSingle(modelId: String): Boolean {
+        if (modelId == currentModelId && currentDocIds.isEmpty()) return false
+        currentModelId = modelId
+        currentDocIds = emptyList()
+        return true
     }
 
     fun refreshDocs() {
@@ -125,11 +153,15 @@ class DocsTab(
     }
 
     private fun buildDocsHtml(): String {
-        val modelId = currentModelId
         val index = ManifestService.getInstance(project).getIndex()
-        if (index === ManifestIndex.EMPTY || modelId == null) {
+        if (index === ManifestIndex.EMPTY) {
             return wrapHtml("<p class='empty'>No model selected or manifest not loaded.</p>")
         }
+
+        if (currentDocIds.size >= 2) return buildYamlIndexHtml(currentDocIds, index)
+
+        val modelId = currentModelId
+            ?: return wrapHtml("<p class='empty'>No model selected or manifest not loaded.</p>")
 
         val node = index.nodes[modelId]
         if (node != null) return buildNodeDocsHtml(node, index)
@@ -139,6 +171,28 @@ class DocsTab(
 
         return wrapHtml("<p class='empty'>Model not found in manifest: ${esc(modelId)}</p>")
     }
+
+    /** Compact index of the models/seeds/snapshots a schema yml documents. */
+    private fun buildYamlIndexHtml(ids: List<String>, index: ManifestIndex): String = buildString {
+        val nodes = ids.mapNotNull { index.nodes[it] }.sortedBy { it.name }
+        append("<div class='doc-container'>")
+        append("<h2>Documented in this file (${nodes.size})</h2>")
+        append("<p class='fqn'>Open a model's SQL file to see its full docs.</p>")
+        for (node in nodes) {
+            append("<div class='section'>")
+            append("<h3>${esc(node.name)} <span class='badge type'>${esc(node.resourceType)}</span></h3>")
+            if (node.database != null || node.schema != null) {
+                val parts = listOfNotNull(node.database, node.schema, node.alias ?: node.name)
+                append("<p class='location'>${parts.joinToString(".") { esc(it) }}</p>")
+            }
+            if (node.description.isNotEmpty()) {
+                append("<div class='description'>${esc(node.description)}</div>")
+            }
+            append("<p class='fqn'>${node.columns.size} columns &middot; depends on ${index.getUpstream(node.uniqueId).size}</p>")
+            append("</div>")
+        }
+        append("</div>")
+    }.let { wrapHtml(it) }
 
     private fun buildNodeDocsHtml(node: DbtNode, index: ManifestIndex): String = buildString {
         val showCompiled = DbtHelperSettings.getInstance(project).state.showCompiledCode
