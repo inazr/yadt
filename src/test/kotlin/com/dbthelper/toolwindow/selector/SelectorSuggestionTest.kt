@@ -88,4 +88,12 @@ class SelectorSuggestionTest {
         val out = rankSelectorSuggestions(ctx("", SelectorCategory.TAG), c).map { it.text }
         assertEquals(listOf("daily", "pii"), out)
     }
+
+    @Test
+    fun `query containing a glob star does not break matching`() {
+        val c = SelectorCandidates.from(index())
+        val out = rankSelectorSuggestions(ctx("stg*", SelectorCategory.BARE), c).map { it.text }
+        assertTrue(out.contains("stg_orders"))
+        assertTrue(out.contains("stg_customers"))
+    }
 }

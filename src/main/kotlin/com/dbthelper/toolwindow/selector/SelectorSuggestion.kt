@@ -28,10 +28,13 @@ fun rankSelectorSuggestions(
         SelectorCategory.PATH -> candidates.paths
         SelectorCategory.FQN -> candidates.fqns
     }
-    if (context.query.isEmpty()) {
+    // MinusculeMatcher treats '*' as a wildcard in the pattern; a literal '*' in the user's
+    // query (e.g. a path/fqn glob) would change the pattern's meaning, so drop it first.
+    val query = context.query.replace("*", "")
+    if (query.isEmpty()) {
         return pool.take(MAX_SUGGESTIONS).map { SelectorSuggestion(it) }
     }
-    val matcher: MinusculeMatcher = NameUtil.buildMatcher("*${context.query}").build()
+    val matcher: MinusculeMatcher = NameUtil.buildMatcher("*$query").build()
     return pool.asSequence()
         .filter { matcher.matches(it) }
         .sortedWith(compareByDescending<String> { matcher.matchingDegree(it) }.thenBy { it })
