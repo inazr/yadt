@@ -99,10 +99,37 @@
         return SCHEMA_PALETTE[Math.abs(h) % SCHEMA_PALETTE.length];
     }
 
-    const CARD_WIDTH = 220;
+    const MIN_CARD_WIDTH = 220;   // floor: short names look exactly as before
+    const MAX_CARD_WIDTH = 460;   // cap: ~45 chars; longer names ellipsize (hover/docs show full)
+    // Fixed non-text horizontal space in a card: borders (2) + main-row left padding (4)
+    // + icon block (margin-left 14 + icon 28 + margin-right 10 = 52) + right padding (12) = 70,
+    // plus ~16 reserved on the right so a fully-shown name doesn't run under the absolute
+    // .card-toggle / .card-failure-badge (right: 5–6px, width 14px).
+    const CARD_CHROME_PX = 86;
     const CARD_HEIGHT = 44;
     const STUB_WIDTH = 110;
     const STUB_HEIGHT = 40;
+
+    // Card-name font is fixed (see .card-name in lineage.html) and does NOT vary with the IDE
+    // theme, so a single cached canvas context measures names accurately and stably.
+    const CARD_NAME_FONT = "600 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+    var _cardMeasureCtx = null;
+
+    /**
+     * Width needed to show [name] in full, clamped to [MIN_CARD_WIDTH, MAX_CARD_WIDTH].
+     * Computed at graph-build time (before cards exist) so it can feed the cytoscape node's
+     * data(w), which ELK uses for layout and which syncNodeCards reads back for the HTML card.
+     */
+    function measureCardWidth(name) {
+        if (!_cardMeasureCtx) {
+            var canvas = document.createElement('canvas');
+            _cardMeasureCtx = canvas.getContext('2d');
+            if (_cardMeasureCtx) _cardMeasureCtx.font = CARD_NAME_FONT;
+        }
+        if (!_cardMeasureCtx) return MIN_CARD_WIDTH; // defensive: no 2D context → never break rendering
+        var textW = Math.ceil(_cardMeasureCtx.measureText(name || '').width);
+        return Math.max(MIN_CARD_WIDTH, Math.min(MAX_CARD_WIDTH, textW + CARD_CHROME_PX));
+    }
 
     function cardHeightFor(data) {
         if (!expandedIds.has(data.id)) return CARD_HEIGHT;
@@ -1032,7 +1059,7 @@
                 }
 
                 var name = node.name;
-                var w = CARD_WIDTH;
+                var w = measureCardWidth(name);
                 var h = (node.resourceType === 'stub') ? STUB_HEIGHT : cardHeightFor(node);
                 if (node.resourceType === 'stub') { w = STUB_WIDTH; }
 
