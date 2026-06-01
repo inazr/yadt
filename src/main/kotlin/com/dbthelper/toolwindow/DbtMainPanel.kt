@@ -38,7 +38,7 @@ class DbtMainPanel(
     parentDisposable: Disposable
 ) : JPanel(BorderLayout()), Disposable {
 
-    private val actionBar = DbtActionBar(project)
+    private val actionBar = DbtActionBar(project, this)
     private val tabs = JBTabbedPane()
     private val lineageTab = LineageTab(project, this, actionBar)
     private val runnerTab = DbtRunnerTab(project, this)
