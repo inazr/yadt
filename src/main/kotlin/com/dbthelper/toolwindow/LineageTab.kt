@@ -219,6 +219,8 @@ class LineageTab(
                         pushFreshnessDetailToSidebar(nodeId)
                     }
                     "captureViewport" -> {
+                        val cropLeft = payload?.get("cropLeft")?.asDouble()
+                        val cropRight = payload?.get("cropRight")?.asDouble()
                         ApplicationManager.getApplication().invokeLater {
                             if (isDisposed) return@invokeLater
                             try {
@@ -226,7 +228,11 @@ class LineageTab(
                                 if (image == null) {
                                     notify("Lineage panel must be visible to copy a screenshot", NotificationType.WARNING)
                                 } else {
-                                    LineageScreenshotter.copyToClipboard(image)
+                                    val compW = browser.component.size.width
+                                    val cropped = LineageScreenshotter.cropHorizontally(
+                                        image, compW, cropLeft ?: 0.0, cropRight ?: compW.toDouble()
+                                    )
+                                    LineageScreenshotter.copyToClipboard(cropped)
                                     notify("Lineage copied to clipboard", NotificationType.INFORMATION)
                                 }
                             } catch (e: Exception) {
