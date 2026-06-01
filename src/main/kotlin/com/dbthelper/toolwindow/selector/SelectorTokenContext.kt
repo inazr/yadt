@@ -29,6 +29,9 @@ data class SelectorTokenContext(
 
         private fun isSep(c: Char) = c == ' ' || c == ','
 
+        /**
+         * Parse the token under [caret] (clamped to `0..text.length`) in [text].
+         */
         fun parse(text: String, caret: Int): SelectorTokenContext {
             val c = caret.coerceIn(0, text.length)
             var start = c

@@ -70,5 +70,24 @@ class SelectorTokenContextTest {
         val ctx = SelectorTokenContext.parse(text, caret = text.length)
         assertEquals("config:x", ctx.query)
         assertEquals(SelectorCategory.BARE, ctx.category)
+        assertEquals(0, ctx.replaceStart)
+        assertEquals(8, ctx.replaceEnd)
+    }
+
+    @Test
+    fun `a lone plus operator yields an empty query and a non-inverted range`() {
+        val ctx = SelectorTokenContext.parse("+", caret = 1)
+        assertEquals("", ctx.query)
+        assertEquals(SelectorCategory.BARE, ctx.category)
+        assertEquals(ctx.replaceStart, ctx.replaceEnd) // empty range, never inverted
+        assertEquals(1, ctx.replaceStart)
+    }
+
+    @Test
+    fun `double plus operators yield an empty non-inverted range`() {
+        val ctx = SelectorTokenContext.parse("++", caret = 2)
+        assertEquals("", ctx.query)
+        assertEquals(SelectorCategory.BARE, ctx.category)
+        assertEquals(ctx.replaceStart, ctx.replaceEnd)
     }
 }
