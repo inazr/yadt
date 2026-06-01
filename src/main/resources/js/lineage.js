@@ -1231,11 +1231,15 @@
     var screenshotRestoreTimer = null;
 
     function beginScreenshot() {
+        var btn = document.getElementById('copy-screenshot');
+        if (btn) btn.disabled = true;
         SCREENSHOT_CHROME_IDS.forEach(function (id) {
             var el = document.getElementById(id);
             if (el) el.classList.add('screenshot-hidden');
         });
         if (screenshotRestoreTimer) clearTimeout(screenshotRestoreTimer);
+        // 1.5s: generous upper bound for the native capture; on success Kotlin calls
+        // restoreScreenshotChrome() well before this, which clears the timer.
         screenshotRestoreTimer = setTimeout(window.restoreScreenshotChrome, 1500);
         // Double rAF guarantees the hide has actually painted before Kotlin grabs.
         requestAnimationFrame(function () {
@@ -1254,6 +1258,8 @@
             var el = document.getElementById(id);
             if (el) el.classList.remove('screenshot-hidden');
         });
+        var btn = document.getElementById('copy-screenshot');
+        if (btn) btn.disabled = false;
     };
 
     var screenshotBtn = document.getElementById('copy-screenshot');
