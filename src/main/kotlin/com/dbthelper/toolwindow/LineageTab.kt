@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
@@ -215,6 +217,25 @@ class LineageTab(
                     "openFreshnessDetail" -> {
                         val nodeId = payload?.get("nodeId")?.asText() ?: return@addHandler JBCefJSQuery.Response("ok")
                         pushFreshnessDetailToSidebar(nodeId)
+                    }
+                    "captureViewport" -> {
+                        ApplicationManager.getApplication().invokeLater {
+                            if (isDisposed) return@invokeLater
+                            try {
+                                val image = LineageScreenshotter.capture(browser.component)
+                                if (image == null) {
+                                    notify("Lineage panel must be visible to copy a screenshot.", NotificationType.WARNING)
+                                } else {
+                                    LineageScreenshotter.copyToClipboard(image)
+                                    notify("Lineage copied to clipboard", NotificationType.INFORMATION)
+                                }
+                            } catch (e: Exception) {
+                                logger.warn("Failed to capture lineage screenshot", e)
+                                notify("Failed to copy lineage screenshot: ${e.message}", NotificationType.ERROR)
+                            } finally {
+                                if (!isDisposed) executeJs("restoreScreenshotChrome()")
+                            }
+                        }
                     }
                 }
                 JBCefJSQuery.Response("ok")
@@ -954,6 +975,13 @@ class LineageTab(
         if (!isDisposed) {
             browser.cefBrowser.executeJavaScript(code, browser.cefBrowser.url, 0)
         }
+    }
+
+    private fun notify(content: String, type: NotificationType) {
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("YADT")
+            .createNotification(content, type)
+            .notify(project)
     }
 
     private fun escapeJs(s: String): String = s.replace("\\", "\\\\").replace("'", "\\'")
