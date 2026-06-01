@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Autocomplete in the dbt selector field: fuzzy-matched suggestions for model names, tags
+  (`tag:`), sources (`source:`), paths (`path:`), and fqns (`fqn:`) as you type, shown in a
+  scrollable popup (up to 10 rows visible). Triggers from the second character of the token
+  under the caret.
 - Lineage: copied screenshots are now trimmed to the graph — the left/right edges sit 150px beyond the outermost nodes instead of including the full panel width
 
 ## [0.3.3] - 2026-06-01
