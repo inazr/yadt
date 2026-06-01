@@ -96,4 +96,18 @@ class SelectorSuggestionTest {
         assertTrue(out.contains("stg_orders"))
         assertTrue(out.contains("stg_customers"))
     }
+
+    @Test
+    fun `path category suggests directory prefixes`() {
+        val c = SelectorCandidates.from(index())
+        val out = rankSelectorSuggestions(ctx("stag", SelectorCategory.PATH), c).map { it.text }
+        assertEquals(listOf("models/staging"), out)
+    }
+
+    @Test
+    fun `fqn category suggests dot-joined fully qualified names`() {
+        val c = SelectorCandidates.from(index())
+        val out = rankSelectorSuggestions(ctx("stg_ord", SelectorCategory.FQN), c).map { it.text }
+        assertEquals(listOf("proj.stg_orders"), out)
+    }
 }
