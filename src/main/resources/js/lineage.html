@@ -624,6 +624,10 @@
         #minimap-wrap.cy-minimap-pan { cursor: grabbing; }
         #minimap { display: block; width: 100%; height: 100%; }
         #controls button.active { background: var(--card-selected-bg); border-color: var(--card-selected-border); }
+        /* Applied to floating chrome only while a screenshot is being captured, so it
+           is not in the grabbed image. !important beats inline display:block toggles
+           (e.g. an open minimap/sidebar); removing the class restores the prior state. */
+        .screenshot-hidden { display: none !important; }
         .toolbar-label {
             font-size: 11px;
             margin-left: 6px;
@@ -736,6 +740,12 @@
                 <line x1="11.5" y1="6" x2="13" y2="6"/>
                 <line x1="11.5" y1="8" x2="13" y2="8"/>
                 <line x1="11.5" y1="10" x2="13" y2="10"/>
+            </svg>
+        </button>
+        <button id="copy-screenshot" title="Copy lineage to clipboard">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;">
+                <path d="M2 5.5a1 1 0 0 1 1-1h1.5l1-1.5h3l1 1.5H13a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/>
+                <circle cx="8" cy="9" r="2.5"/>
             </svg>
         </button>
     </div>

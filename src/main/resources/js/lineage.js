@@ -994,7 +994,8 @@
         var label = startedAtIso
             ? new Date(startedAtIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : 'recent run';
-        hintEl.textContent = 'Showing results from last run at ' + label + ' (' + count + ' models).';
+        var noun = count === 1 ? 'model' : 'models';
+        hintEl.textContent = 'Showing results from last run at ' + label + ' (' + count + ' ' + noun + ').';
         hintEl.style.display = 'block';
     }
 
@@ -1222,6 +1223,44 @@
             sendToKotlin('regenerateDocs', {});
         });
     }
+
+    // Screenshot: hide the floating chrome, let it paint, then ask Kotlin to grab the
+    // JCEF component's on-screen pixels. Kotlin calls restoreScreenshotChrome() when
+    // done (success or failure); the timeout is a safety net if it never replies.
+    var SCREENSHOT_CHROME_IDS = ['controls', 'minimap-wrap', 'search-box', 'docs-sidebar', 'tooltip', 'run-results-hint'];
+    var screenshotRestoreTimer = null;
+
+    function beginScreenshot() {
+        SCREENSHOT_CHROME_IDS.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.classList.add('screenshot-hidden');
+        });
+        if (screenshotRestoreTimer) clearTimeout(screenshotRestoreTimer);
+        screenshotRestoreTimer = setTimeout(window.restoreScreenshotChrome, 1500);
+        // Double rAF guarantees the hide has actually painted before Kotlin grabs.
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                sendToKotlin('captureViewport', {});
+            });
+        });
+    }
+
+    window.restoreScreenshotChrome = function () {
+        if (screenshotRestoreTimer) {
+            clearTimeout(screenshotRestoreTimer);
+            screenshotRestoreTimer = null;
+        }
+        SCREENSHOT_CHROME_IDS.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.classList.remove('screenshot-hidden');
+        });
+    };
+
+    var screenshotBtn = document.getElementById('copy-screenshot');
+    if (screenshotBtn) {
+        screenshotBtn.addEventListener('click', beginScreenshot);
+    }
+
     window.setRegenerateNeedsAttention = function (needs) {
         if (regenerateBtn) regenerateBtn.classList.toggle('needs-attention', !!needs);
     };
