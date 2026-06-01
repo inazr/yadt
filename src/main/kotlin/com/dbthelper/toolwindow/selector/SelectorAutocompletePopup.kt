@@ -36,6 +36,7 @@ class SelectorAutocompletePopup(
         cellRenderer = SimpleListCellRenderer.create("") { it.text }
     }
     private var popup: JBPopup? = null
+    private var accepting = false
 
     init {
         field.document.addDocumentListener(object : DocumentListener {
@@ -66,6 +67,7 @@ class SelectorAutocompletePopup(
     fun isShowing(): Boolean = popup?.isVisible == true
 
     private fun refresh() {
+        if (accepting) return // accept() drives the document; its own trailing refresh() is authoritative
         if (!field.isEnabled || !field.isFocusOwner) { hide(); return }
         val ctx = SelectorTokenContext.parse(field.text, field.caretPosition)
         if (ctx.query.length < MIN_QUERY_CHARS) { hide(); return }
@@ -95,7 +97,7 @@ class SelectorAutocompletePopup(
     }
 
     private fun moveSelection(delta: Int) {
-        val size = model.size()
+        val size = model.size
         if (size == 0) return
         val next = ((list.selectedIndex + delta) % size + size) % size
         list.selectedIndex = next
@@ -107,10 +109,18 @@ class SelectorAutocompletePopup(
         val ctx = SelectorTokenContext.parse(field.text, field.caretPosition)
         val text = field.text
         val newText = text.substring(0, ctx.replaceStart) + chosen.text + text.substring(ctx.replaceEnd)
-        field.text = newText
-        field.caretPosition = (ctx.replaceStart + chosen.text.length).coerceAtMost(newText.length)
-        hide()
-        // If a method prefix (`tag:` etc.) was just inserted, reopen to suggest its values.
+        val newCaret = (ctx.replaceStart + chosen.text.length).coerceAtMost(newText.length)
+        // The setText below fires the DocumentListener synchronously; suppress that reentrant
+        // refresh so it can't parse at the not-yet-updated caret.
+        accepting = true
+        try {
+            hide()
+            field.text = newText
+            field.caretPosition = newCaret
+        } finally {
+            accepting = false
+        }
+        // Single authoritative refresh with the correct caret: reopens for `tag:`-style values.
         refresh()
     }
 
