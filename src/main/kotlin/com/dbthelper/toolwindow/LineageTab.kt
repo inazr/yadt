@@ -224,7 +224,7 @@ class LineageTab(
                             try {
                                 val image = LineageScreenshotter.capture(browser.component)
                                 if (image == null) {
-                                    notify("Lineage panel must be visible to copy a screenshot.", NotificationType.WARNING)
+                                    notify("Lineage panel must be visible to copy a screenshot", NotificationType.WARNING)
                                 } else {
                                     LineageScreenshotter.copyToClipboard(image)
                                     notify("Lineage copied to clipboard", NotificationType.INFORMATION)
@@ -982,6 +982,10 @@ class LineageTab(
             .getNotificationGroup("YADT")
             .createNotification(content, type)
             .notify(project)
+        if (DbtHelperSettings.getInstance(project).state.enableSystemNotifications) {
+            val title = if (type == NotificationType.ERROR) "dbt Error" else "YADT"
+            com.intellij.ui.SystemNotifications.getInstance().notify("yadt", title, content)
+        }
     }
 
     private fun escapeJs(s: String): String = s.replace("\\", "\\\\").replace("'", "\\'")
