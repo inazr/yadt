@@ -52,6 +52,33 @@ object LineageScreenshotter {
     }
 
     /**
+     * Device-pixel column range to keep when trimming a full-width capture to
+     * [leftCss]..[rightCss] (on-screen CSS px). The captured image is device-resolution
+     * (Retina), so CSS coords are scaled by imageWidth/componentWidthCss. Bounds are
+     * clamped to [0, imageWidth]. Returns null when cropping is a no-op or invalid —
+     * non-positive component width, the range covering the whole width, or width < 1px —
+     * meaning "use the full image".
+     */
+    fun cropBounds(imageWidth: Int, componentWidthCss: Int, leftCss: Double, rightCss: Double): IntRange? {
+        if (componentWidthCss <= 0 || imageWidth <= 0) return null
+        val scale = imageWidth.toDouble() / componentWidthCss
+        val x = Math.round(leftCss * scale).toInt().coerceIn(0, imageWidth)
+        val right = Math.round(rightCss * scale).toInt().coerceIn(0, imageWidth)
+        if (right - x < 1) return null
+        if (x <= 0 && right >= imageWidth) return null
+        return x until right
+    }
+
+    /**
+     * Trim [image] horizontally to [leftCss]..[rightCss] (CSS px), keeping full height.
+     * Returns [image] unchanged when [cropBounds] decides cropping is a no-op.
+     */
+    fun cropHorizontally(image: BufferedImage, componentWidthCss: Int, leftCss: Double, rightCss: Double): BufferedImage {
+        val range = cropBounds(image.width, componentWidthCss, leftCss, rightCss) ?: return image
+        return image.getSubimage(range.first, 0, range.last - range.first + 1, image.height)
+    }
+
+    /**
      * Pick the highest-resolution variant (largest pixel area) from a
      * MultiResolutionImage's variants — on HiDPI/Retina the largest is the crisp,
      * device-resolution image. Keeps the first element on ties. Throws if empty.
