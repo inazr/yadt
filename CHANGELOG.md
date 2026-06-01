@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Lineage: copied screenshots are now trimmed to the graph — the left/right edges sit 150px beyond the outermost nodes instead of including the full panel width
+
 ## [0.3.3] - 2026-06-01
 
 - Lineage: node cards now grow to show the full model name (up to a max width; very long names still ellipsize), instead of truncating every name at a fixed width — so diagrams and screenshots are readable
