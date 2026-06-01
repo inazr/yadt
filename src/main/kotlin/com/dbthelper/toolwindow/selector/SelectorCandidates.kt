@@ -36,8 +36,10 @@ data class SelectorCandidates(
                 .flatMap { dirPrefixes(it) }
                 .distinct().sorted()
 
+            // Same node-type scope as [models]: an fqn: selector targets buildable nodes,
+            // so test/analysis fqns would only be noise in the popup.
             val fqns = index.nodes.values
-                .filter { it.fqn.isNotEmpty() }
+                .filter { it.resourceType in NAMED_TYPES && it.fqn.isNotEmpty() }
                 .map { it.fqn.joinToString(".") }
                 .distinct().sorted()
 

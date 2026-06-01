@@ -45,5 +45,7 @@ class SelectorSuggestionTest {
         assertTrue(c.paths.contains("models"))
         assertTrue(c.paths.contains("models/staging"))
         assertTrue(c.paths.contains("seeds"))
+        // test-type node fqns must not leak into the fqn pool
+        assertTrue(c.fqns.none { it.contains("not_null") })
     }
 }
