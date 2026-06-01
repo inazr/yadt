@@ -1256,6 +1256,31 @@
     // done (success or failure); the timeout is a safety net if it never replies.
     var SCREENSHOT_CHROME_IDS = ['controls', 'minimap-wrap', 'search-box', 'docs-sidebar', 'tooltip', 'run-results-hint'];
     var screenshotRestoreTimer = null;
+    var TRIM_MARGIN_PX = 150;
+
+    // On-screen crop window (CSS px) so the screenshot is trimmed to the graph plus a
+    // 150px margin on each side. Bounds every visible non-cluster node (stubs included);
+    // clamps to the viewport so we never crop past what was captured. Empty graph → full width.
+    function computeScreenshotCrop() {
+        var containerWidth = cy ? Math.round(cy.width()) : 0;
+        if (!cy) return { cropLeft: 0, cropRight: containerWidth };
+        var zoom = cy.zoom();
+        var minLeft = Infinity, maxRight = -Infinity;
+        cy.nodes().forEach(function (n) {
+            if (n.isParent()) return; // skip cluster/compound parents
+            var pos = n.renderedPosition();
+            var halfW = (n.width() * zoom) / 2;
+            if (pos.x - halfW < minLeft) minLeft = pos.x - halfW;
+            if (pos.x + halfW > maxRight) maxRight = pos.x + halfW;
+        });
+        if (!isFinite(minLeft) || !isFinite(maxRight)) {
+            return { cropLeft: 0, cropRight: containerWidth };
+        }
+        return {
+            cropLeft: Math.round(Math.max(0, minLeft - TRIM_MARGIN_PX)),
+            cropRight: Math.round(Math.min(containerWidth, maxRight + TRIM_MARGIN_PX))
+        };
+    }
 
     function beginScreenshot() {
         var btn = document.getElementById('copy-screenshot');
@@ -1271,7 +1296,7 @@
         // Double rAF guarantees the hide has actually painted before Kotlin grabs.
         requestAnimationFrame(function () {
             requestAnimationFrame(function () {
-                sendToKotlin('captureViewport', {});
+                sendToKotlin('captureViewport', computeScreenshotCrop());
             });
         });
     }
