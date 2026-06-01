@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Fix the "last run" lineage banner counting tests as models — it now counts only the built nodes (e.g. a build of one model plus its two tests shows "1 model", not "3 models")
+
 ## [0.3.2] - 2026-05-31
 
 - Maintenance release; packaging and documentation updates only, no functional changes since 0.3.0

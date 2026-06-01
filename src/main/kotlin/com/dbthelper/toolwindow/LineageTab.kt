@@ -885,7 +885,11 @@ class LineageTab(
 
     private fun pushRunResultsToJs(results: Map<String, com.dbthelper.actions.RunResult>) {
         if (!isPageReady || isDisposed) return
-        val payload = mapper.writeValueAsString(results.mapValues { (_, r) ->
+        // Only graph nodes drive the cards and the "last run (N)" hint; tests color no
+        // card and would inflate that count. Keep the full map for rollUpTestOutcomes,
+        // which needs the test entries to attribute outcomes to their tested nodes.
+        val nodeResults = results.filterKeys { !com.dbthelper.actions.isTestUniqueId(it) }
+        val payload = mapper.writeValueAsString(nodeResults.mapValues { (_, r) ->
             mapOf(
                 "status" to r.status.wire,
                 "message" to r.message,
@@ -919,7 +923,7 @@ class LineageTab(
         val failed = HashMap<String, Int>()
         val warned = HashMap<String, Int>()
         for ((id, r) in results) {
-            if (!id.startsWith("test.") && !id.startsWith("unit_test.")) continue
+            if (!com.dbthelper.actions.isTestUniqueId(id)) continue
             val bucket = when (r.status) {
                 com.dbthelper.actions.RunStatus.ERROR -> failed
                 com.dbthelper.actions.RunStatus.WARN -> warned

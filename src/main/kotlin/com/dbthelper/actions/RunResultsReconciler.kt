@@ -62,7 +62,7 @@ object RunResultsReconciler {
             val uniqueId = r.path("unique_id").asText(null) ?: continue
             // Tests aren't rendered as nodes and don't color a model's bar; their
             // outcomes are shown via the triangle overlay instead.
-            if (uniqueId.startsWith("test.") || uniqueId.startsWith("unit_test.")) continue
+            if (isTestUniqueId(uniqueId)) continue
             val status = mapStatus(r.path("status").asText("")) ?: continue
             contribute(uniqueId, status)
         }
