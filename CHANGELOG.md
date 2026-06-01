@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-01
+
 - Lineage: node cards now grow to show the full model name (up to a max width; very long names still ellipsize), instead of truncating every name at a fixed width — so diagrams and screenshots are readable
 - Lineage: a camera button in the graph controls copies the visible lineage to the clipboard as an image (clean, without the floating controls/minimap/sidebar) — handy for pasting into documentation
 - Fix the "last run" lineage banner counting tests as models — it now counts only the built nodes (e.g. a build of one model plus its two tests shows "1 model", not "3 models")
@@ -55,7 +57,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/inazr/yadt/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/inazr/yadt/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/inazr/yadt/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/inazr/yadt/compare/v0.2.1...v0.3.0
