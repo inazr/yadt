@@ -48,4 +48,44 @@ class SelectorSuggestionTest {
         // test-type node fqns must not leak into the fqn pool
         assertTrue(c.fqns.none { it.contains("not_null") })
     }
+
+    private fun ctx(query: String, category: SelectorCategory) =
+        SelectorTokenContext(query = query, category = category, replaceStart = 0, replaceEnd = query.length)
+
+    @Test
+    fun `bare query fuzzy-matches model names`() {
+        val c = SelectorCandidates.from(index())
+        val out = rankSelectorSuggestions(ctx("stg", SelectorCategory.BARE), c).map { it.text }
+        assertTrue(out.contains("stg_orders"))
+        assertTrue(out.contains("stg_customers"))
+        assertTrue(out.none { it == "country_codes" })
+    }
+
+    @Test
+    fun `bare query also surfaces method prefixes for discoverability`() {
+        val c = SelectorCandidates.from(index())
+        val out = rankSelectorSuggestions(ctx("ta", SelectorCategory.BARE), c).map { it.text }
+        assertTrue(out.contains("tag:"))
+    }
+
+    @Test
+    fun `tag category is isolated to the tag pool`() {
+        val c = SelectorCandidates.from(index())
+        val out = rankSelectorSuggestions(ctx("da", SelectorCategory.TAG), c).map { it.text }
+        assertEquals(listOf("daily"), out)
+    }
+
+    @Test
+    fun `source category suggests source dot table values`() {
+        val c = SelectorCandidates.from(index())
+        val out = rankSelectorSuggestions(ctx("ord", SelectorCategory.SOURCE), c).map { it.text }
+        assertEquals(listOf("raw.orders"), out)
+    }
+
+    @Test
+    fun `empty query returns the whole pool`() {
+        val c = SelectorCandidates.from(index())
+        val out = rankSelectorSuggestions(ctx("", SelectorCategory.TAG), c).map { it.text }
+        assertEquals(listOf("daily", "pii"), out)
+    }
 }
