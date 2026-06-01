@@ -58,9 +58,9 @@ object LineageScreenshotter {
      */
     fun pickLargestVariant(variants: List<Image>): Image {
         require(variants.isNotEmpty()) { "no resolution variants to choose from" }
-        return variants.maxByOrNull {
+        return variants.maxBy {
             it.getWidth(null).toLong() * it.getHeight(null).toLong()
-        }!!
+        }
     }
 
     private fun toBufferedImage(image: Image): BufferedImage {
