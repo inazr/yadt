@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Lineage: a camera button in the graph controls copies the visible lineage to the clipboard as an image (clean, without the floating controls/minimap/sidebar) — handy for pasting into documentation
 - Fix the "last run" lineage banner counting tests as models — it now counts only the built nodes (e.g. a build of one model plus its two tests shows "1 model", not "3 models")
 
 ## [0.3.2] - 2026-05-31
