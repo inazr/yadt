@@ -2,11 +2,14 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-02
+
 - Autocomplete in the dbt selector field: fuzzy-matched suggestions for model names, tags
   (`tag:`), sources (`source:`), paths (`path:`), and fqns (`fqn:`) as you type, shown in a
   scrollable popup (up to 10 rows visible). Triggers from the second character of the token
   under the caret.
 - Lineage: copied screenshots are now trimmed to the graph — the left/right edges sit 150px beyond the outermost nodes instead of including the full panel width
+- Fix the Target dropdown being empty when a project keeps its `profiles.yml` in the project root (e.g. the duckdb starter projects) — profile resolution now checks the project directory before `~/.dbt`, matching dbt 1.5+
 
 ## [0.3.3] - 2026-06-01
 
@@ -63,7 +66,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/inazr/yadt/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/inazr/yadt/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/inazr/yadt/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/inazr/yadt/compare/v0.3.0...v0.3.1

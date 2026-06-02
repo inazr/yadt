@@ -72,6 +72,15 @@ class DbtProjectLocator(private val project: Project) {
             if (file.exists()) return file
         }
 
+        // dbt 1.5+ resolves profiles.yml from the working directory before
+        // ~/.dbt — and we run dbt with the project root as its cwd. duckdb
+        // starter projects (e.g. jaffle_shop_duckdb) ship profiles.yml here, so
+        // without this the target dropdown stays empty.
+        findProjectRoot()?.let { root ->
+            val file = File(root.path, "profiles.yml")
+            if (file.exists()) return file
+        }
+
         val homeDir = System.getProperty("user.home")
         val file = File(homeDir, ".dbt/profiles.yml")
         return if (file.exists()) file else null
