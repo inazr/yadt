@@ -7,6 +7,9 @@ import com.dbthelper.actions.DbtVerb
 import com.dbthelper.core.ProfilesParser
 import com.dbthelper.settings.DbtHelperSettings
 import com.dbthelper.settings.SettingsChangeListener
+import com.dbthelper.toolwindow.selector.SelectorAutocompletePopup
+import com.dbthelper.toolwindow.selector.SelectorSuggestionProvider
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.CheckBoxList
@@ -34,7 +37,10 @@ import javax.swing.event.DocumentListener
  *
  * Holds no execution logic — it exposes callbacks the coordinator wires up.
  */
-class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
+class DbtActionBar(
+    private val project: Project,
+    parentDisposable: Disposable
+) : JPanel(BorderLayout()) {
 
     // --- callbacks set by DbtMainPanel ---
     var onGo: ((DbtCommandSpec) -> Unit)? = null
@@ -49,6 +55,8 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
         emptyText.text = "dbt selector (e.g. my_model or 1+my_model+2)"
         preferredSize = Dimension(360, preferredSize.height)
     }
+    private val suggestionProvider = SelectorSuggestionProvider(project, parentDisposable)
+    private val autocomplete = SelectorAutocompletePopup(selectorField, suggestionProvider)
     private val extraArgsField = JBTextField().apply {
         emptyText.text = "--threads 8 --vars '{k: v}'"
         toolTipText = "Extra dbt args, appended verbatim to the command"
@@ -256,6 +264,9 @@ class DbtActionBar(private val project: Project) : JPanel(BorderLayout()) {
         })
         // Enter in the selector field triggers the authoritative dbt ls resolution.
         selectorField.addActionListener {
+            // While the autocomplete popup is open, Enter accepts a suggestion — it must not
+            // also fire the authoritative `dbt ls` resolution.
+            if (autocomplete.isShowing()) return@addActionListener
             if (!suppressSelectorEvents && !running) {
                 onSelectorEnter?.invoke(selectorField.text.trim())
             }
