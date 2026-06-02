@@ -3,50 +3,51 @@
     <name>YADT — Yet Another dbt Tool</name>
     <vendor email="yadt@stephan-ohm.com" url="https://github.com/inazr/yadt">inazr</vendor>
     <description><![CDATA[
-<h2>YADT — Lineage, Code Intelligence & Runner for dbt</h2>
+<p><b>YADT</b> (Yet Another dbt Tool) adds lineage visualization, code intelligence, and a
+command runner for <a href="https://www.getdbt.com/">dbt</a> projects to JetBrains IDEs —
+IntelliJ IDEA, PyCharm, DataSpell, and other IntelliJ-Platform IDEs. It reads your project's
+compiled <code>manifest.json</code>, so it works with dbt Core and detects and supports the
+dbt Fusion engine and the dbt Cloud CLI.</p>
 
-<p>A powerful plugin that brings <b>lineage visualization</b>, <b>code intelligence</b>, and a <b>command runner</b>
-for <a href="https://www.getdbt.com/">dbt</a> projects directly into your JetBrains IDE.</p>
-
-<h3>Lineage Graph</h3>
+<h3>Lineage graph</h3>
 <ul>
-  <li>Interactive DAG visualization powered by Cytoscape.js</li>
-  <li>Click nodes to navigate to source files</li>
-  <li>Expand boundary nodes to explore deeper dependencies</li>
-  <li>Configurable depth, layout direction, and edge style</li>
-  <li>Shows models, sources, seeds, snapshots, exposures, and tests</li>
-  <li>Auto-updates when manifest changes; adapts to light/dark themes</li>
+  <li>Interactive DAG of models, sources, seeds, snapshots, exposures, and tests</li>
+  <li>Drive the graph by typing a dbt selector — <code>tag:</code>, <code>path:</code>, <code>source:</code>, fqn, globs, and graph operators like <code>2+my_model+</code> — with autocomplete as you type</li>
+  <li>Click a node to open its file; expand boundary nodes to explore deeper dependencies</li>
+  <li>Build status and source freshness shown on the cards; failing tests flagged separately</li>
+  <li>Configurable depth, layout direction, and edge style; adapts to your full IDE theme</li>
+  <li>Copy the visible graph to the clipboard as an image for documentation</li>
+  <li>Auto-updates when the manifest changes</li>
 </ul>
 
-<h3>Code Intelligence</h3>
+<h3>Code intelligence</h3>
 <ul>
-  <li><b>Autocompletion</b> — ref(), source(), macro() suggestions with descriptions</li>
-  <li><b>Go to Definition</b> — Ctrl/Cmd+Click on ref() / source() to jump to the file</li>
-  <li><b>Documentation on Hover</b> — columns, materialization, tags, descriptions</li>
-  <li><b>Annotations</b> — unresolved ref() / source() highlighted as warnings</li>
+  <li><b>Autocompletion</b> — <code>ref()</code>, <code>source()</code>, <code>macro()</code> suggestions with descriptions</li>
+  <li><b>Go to definition</b> — Ctrl/Cmd+Click a <code>ref()</code> / <code>source()</code> to jump to the file</li>
+  <li><b>Documentation on hover</b> — columns, materialization, tags, descriptions</li>
+  <li><b>Annotations</b> — unresolved <code>ref()</code> / <code>source()</code> highlighted as warnings</li>
   <li>Works in .sql, .jinja, and .jinja2 files</li>
 </ul>
 
 <h3>Runner</h3>
 <ul>
-  <li><b>Run / Test / Compile</b> the current model with one click</li>
-  <li><b>Full Refresh</b> checkbox for incremental models</li>
-  <li><b>Preview</b> — execute dbt show on any model or selected SQL</li>
-  <li><b>Docs Generate</b> — rebuild documentation</li>
-  <li>Target selector, stop button, streaming output log</li>
+  <li><b>Run / Build / Test / Compile</b> a single model or any dbt selection</li>
+  <li><b>Preview</b> rows with <code>dbt show</code>; <b>full-refresh</b> toggle for incremental models</li>
+  <li><b>Docs generate</b> to rebuild documentation</li>
+  <li>Flags discovered from your installed dbt, target selector, stop button, streaming output log</li>
   <li>Native OS notifications when commands finish</li>
 </ul>
 
-<h3>Copy &amp; Paste</h3>
+<h3>Copy &amp; paste</h3>
 <ul>
-  <li><b>Copy for Target DB</b> (Cmd+Shift+C) — ref()/source() replaced by database.schema.table</li>
-  <li><b>Paste as dbt Refs</b> (Cmd+Shift+V) — table names replaced by ref()/source() calls</li>
+  <li><b>Copy for Target DB</b> (Cmd+Shift+C) — <code>ref()</code>/<code>source()</code> replaced by database.schema.table</li>
+  <li><b>Paste as dbt Refs</b> (Cmd+Shift+V) — table names replaced by <code>ref()</code>/<code>source()</code> calls</li>
 </ul>
 
-<h3>Docs Viewer</h3>
+<h3>Docs viewer</h3>
 <p>Browse model documentation in a built-in panel — columns, descriptions, tags, and dependencies.</p>
 
-<p><em>This plugin is not affiliated with or endorsed by dbt Labs.</em></p>
+<p><em>Not affiliated with or endorsed by dbt Labs. dbt is a trademark of dbt Labs, Inc.</em></p>
     ]]></description>
 
     <!-- change-notes ("What's New") is generated from CHANGELOG.md by the
