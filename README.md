@@ -48,8 +48,8 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 | dbt executable path | Path to the dbt CLI binary | `dbt` (auto-detected from PATH) |
 | Project root override | Absolute path to the dbt project root | auto-detect from `dbt_project.yml` |
 | Active target | Target from `profiles.yml` used for compilation | default target |
-| Upstream depth | Parent levels shown above the current node (1–20) | 2 |
-| Downstream depth | Child levels shown below the current node (1–20) | 1 |
+| Upstream depth | Parent levels shown above the current node (1–20) | 1 |
+| Downstream depth | Child levels shown below the current node (1–20) | 2 |
 | Edge style | bezier, taxi, round-taxi, segments, straight, unbundled-bezier, haystack | round-taxi |
 | Layout direction | Left → Right / Top → Bottom / Right → Left / Bottom → Top | Left → Right |
 | Node color | Resource type / Schema name / Status | Status |
@@ -71,6 +71,10 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 |--------|-------|---------------|
 | Copy for Target DB | `Cmd+Shift+C` | `Ctrl+Shift+C` |
 | Paste as dbt Refs | `Cmd+Shift+V` | `Ctrl+Shift+V` |
+| dbt: Run / Stop | _unbound_ | _unbound_ |
+| dbt: Clear Output | _unbound_ | _unbound_ |
+
+`dbt: Run / Stop` and `dbt: Clear Output` mirror the Runner panel's **[RUN]** and **Clear** buttons (same dbt pipeline, same lineage overlays). They ship without a default shortcut — assign one under **Settings → Keymap** (search for "dbt:"). Both are also in the **Tools** menu.
 
 ---
 

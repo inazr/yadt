@@ -139,6 +139,19 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift V"/>
             <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta shift V"/>
         </action>
+        <!-- No default keyboard-shortcut: bind these under Settings > Keymap. -->
+        <action id="dbtHelper.RunCommand"
+                class="com.dbthelper.actions.RunDbtCommandAction"
+                text="dbt: Run / Stop"
+                description="Run the configured dbt command, or stop the running one — same as the YADT Runner RUN button">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action id="dbtHelper.ClearOutput"
+                class="com.dbthelper.actions.ClearDbtOutputAction"
+                text="dbt: Clear Output"
+                description="Clear the YADT Runner output log — same as the Clear button">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
     </actions>
 
     <projectListeners>

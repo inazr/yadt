@@ -130,7 +130,7 @@ class DbtActionBar(
 
         initTargetCombo()
         initListeners()
-        verbCombo.selectedItem = DbtVerb.RUN
+        verbCombo.selectedItem = DbtVerb.BUILD
         updateForVerb()
     }
 
@@ -185,6 +185,12 @@ class DbtActionBar(
         if (running) return
         onGo?.invoke(spec)
     }
+
+    /** Mirror a user click on the [RUN]/Stop button (run-or-stop toggle). */
+    fun clickGo() = goButton.doClick()
+
+    /** Mirror a user click on the Clear button. */
+    fun clickClear() = clearButton.doClick()
 
     /**
      * If no run is in progress, behave like [goWithSelector]. Otherwise, prompt

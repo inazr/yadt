@@ -5,6 +5,7 @@ import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtVerb
 import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.DbtRunState
+import com.dbthelper.core.DbtRunnerGateway
 import com.dbthelper.core.DbtSelectorParser
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.ManifestUpdateListener
@@ -64,6 +65,12 @@ class DbtMainPanel(
         actionBar.onGo = { spec -> startCommand(spec) }
         actionBar.onStop = { stopCommand() }
         actionBar.onClear = { runnerTab.clear() }
+        // Let the global "dbt: Run / Stop" and "dbt: Clear Output" actions drive
+        // the same buttons, so keymap shortcuts behave exactly like a click.
+        DbtRunnerGateway.getInstance(project).register(
+            run = { actionBar.clickGo() },
+            clear = { actionBar.clickClear() },
+        )
         actionBar.onSelectorChanged = { sel -> driveLineage(sel) }
         actionBar.onSelectorEnter = { sel -> resolveViaCliAndFocus(sel) }
 

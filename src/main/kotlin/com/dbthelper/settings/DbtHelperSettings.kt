@@ -14,8 +14,8 @@ class DbtHelperSettings : PersistentStateComponent<DbtHelperSettings.State> {
         var dbtExecutablePath: String = "dbt",
         var dbtProjectRootOverride: String = "",
         var activeTarget: String = "",
-        var upstreamDepth: Int = 2,
-        var downstreamDepth: Int = 1,
+        var upstreamDepth: Int = 1,
+        var downstreamDepth: Int = 2,
         var autoOpenOnSqlFile: Boolean = true,
         var showExposures: Boolean = true,
         var edgeCurveStyle: String = "round-taxi",
@@ -66,11 +66,18 @@ class DbtHelperSettings : PersistentStateComponent<DbtHelperSettings.State> {
             // a deliberate "schema" choice is preserved.
             if (myState.nodeColorMode == "resource") myState.nodeColorMode = "status"
         }
+        if (myState.configVersion < 3) {
+            // v3: default lineage depth changed from 2/1 to 1/2 (selector "1+model+2").
+            // Adopt it only for users still on the old default — preserve any
+            // deliberate customization.
+            if (myState.upstreamDepth == 2) myState.upstreamDepth = 1
+            if (myState.downstreamDepth == 1) myState.downstreamDepth = 2
+        }
         myState.configVersion = CURRENT_CONFIG_VERSION
     }
 
     companion object {
-        private const val CURRENT_CONFIG_VERSION = 2
+        private const val CURRENT_CONFIG_VERSION = 3
 
         fun getInstance(project: Project): DbtHelperSettings =
             project.service<DbtHelperSettings>()
