@@ -114,6 +114,13 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
         <annotator language="SQL"
                    implementationClass="com.dbthelper.codeintel.DbtAnnotator"/>
 
+        <annotator language="TEXT"
+                   implementationClass="com.dbthelper.codeintel.TerminalColumnAnnotator"/>
+        <annotator language="Jinja2"
+                   implementationClass="com.dbthelper.codeintel.TerminalColumnAnnotator"/>
+        <annotator language="SQL"
+                   implementationClass="com.dbthelper.codeintel.TerminalColumnAnnotator"/>
+
         <gotoDeclarationHandler implementation="com.dbthelper.codeintel.DbtGotoDeclarationHandler"/>
 
         <!-- Notifications -->
@@ -121,24 +128,28 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
     </extensions>
 
     <actions>
-        <action id="dbtHelper.CopyForTarget"
-                class="com.dbthelper.actions.CopyWithRefsReplacedAction"
-                text="Copy for Target DB"
-                description="Copy SQL with ref/source replaced by database.schema.table">
-            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="$Copy"/>
-            <add-to-group group-id="EditMenu" anchor="after" relative-to-action="$Copy"/>
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift C"/>
-            <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta shift C"/>
-        </action>
-        <action id="dbtHelper.PasteAsRefs"
-                class="com.dbthelper.actions.PasteAsRefsAction"
-                text="Paste as dbt Refs"
-                description="Paste SQL with table names replaced by ref/source calls">
+        <group id="dbtHelper.YadtMenu" text="YADT" popup="true">
+            <action id="dbtHelper.CopyForTarget"
+                    class="com.dbthelper.actions.CopyWithRefsReplacedAction"
+                    text="Copy for Target DB"
+                    description="Copy SQL with ref/source replaced by database.schema.table">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift C"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta shift C"/>
+            </action>
+            <action id="dbtHelper.PasteAsRefs"
+                    class="com.dbthelper.actions.PasteAsRefsAction"
+                    text="Paste as dbt Refs"
+                    description="Paste SQL with table names replaced by ref/source calls">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift V"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta shift V"/>
+            </action>
+            <action id="dbtHelper.ConvertRefRelation"
+                    class="com.dbthelper.actions.ToggleRefRelationAction"
+                    text="Convert: ref ↔ Relation"
+                    description="Convert the selection in place between ref()/source() and database.schema.table"/>
             <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="$Paste"/>
             <add-to-group group-id="EditMenu" anchor="after" relative-to-action="$Paste"/>
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift V"/>
-            <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta shift V"/>
-        </action>
+        </group>
         <!-- No default keyboard-shortcut: bind these under Settings > Keymap. -->
         <action id="dbtHelper.RunCommand"
                 class="com.dbthelper.actions.RunDbtCommandAction"

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-22
+
+- New editor action **Convert: ref ↔ Relation** — select a `{{ ref() }}`/`{{ source() }}` (or a `database.schema.table` name) and convert it in place to the other form; direction is detected from the selection. Lives in a new **YADT** right-click submenu that also gathers the existing **Copy for Target DB** and **Paste as dbt Refs** actions (their shortcuts are unchanged)
+- Lineage/code intelligence: model output columns that are not consumed by any downstream model or exposure are now flagged as **potentially terminal** with a gutter icon in the `.sql` model file (a heuristic over direct children + exposures; columns it can't pin to a line collapse into a single file-level marker)
+
 ## [0.4.2] - 2026-06-10
 
 - The Runner now defaults to the **Build** verb instead of Run, so the most common dbt command is preselected when you open the panel
@@ -76,7 +81,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/inazr/yadt/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/inazr/yadt/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/inazr/yadt/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/inazr/yadt/compare/v0.3.3...v0.4.0

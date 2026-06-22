@@ -61,19 +61,30 @@ class CopyWithRefsReplacedAction : AnAction("Copy for Target DB") {
         // Matches {{ this }}
         private val JINJA_THIS = Regex("""\{\{-?\s*this\s*-?\}\}""")
 
-        fun replaceRefsWithRelations(text: String, index: ManifestIndex, currentModelId: String? = null): String {
+        /** True if [text] contains any {{ ref(…) }}, {{ source(…) }} or {{ this }} token. */
+        fun containsJinjaRefs(text: String): Boolean =
+            JINJA_REF.containsMatchIn(text) ||
+                JINJA_SOURCE.containsMatchIn(text) ||
+                JINJA_THIS.containsMatchIn(text)
+
+        fun replaceRefsWithRelations(
+            text: String,
+            index: ManifestIndex,
+            currentModelId: String? = null,
+            includeDatabase: Boolean = true,
+        ): String {
             var result = text
 
-            // Replace {{ this }} → database.schema.table of current model
+            // Replace {{ this }} → [database.]schema.table of current model
             if (currentModelId != null) {
                 val currentNode = index.nodes[currentModelId]
                 if (currentNode != null) {
-                    val relation = buildRelationName(currentNode.database, currentNode.schema, currentNode.alias ?: currentNode.name)
+                    val relation = buildRelationName(currentNode.database.takeIf { includeDatabase }, currentNode.schema, currentNode.alias ?: currentNode.name)
                     result = JINJA_THIS.replace(result, relation)
                 }
             }
 
-            // Replace {{ source('src', 'table') }} → database.schema.table
+            // Replace {{ source('src', 'table') }} → [database.]schema.table
             result = JINJA_SOURCE.replace(result) { match ->
                 val srcName = match.groupValues[1]
                 val tblName = match.groupValues[2]
@@ -81,18 +92,18 @@ class CopyWithRefsReplacedAction : AnAction("Copy for Target DB") {
                     it.sourceName == srcName && it.name == tblName
                 }
                 if (source != null) {
-                    buildRelationName(source.database, source.schema, source.identifier ?: source.name)
+                    buildRelationName(source.database.takeIf { includeDatabase }, source.schema, source.identifier ?: source.name)
                 } else {
                     match.value
                 }
             }
 
-            // Replace {{ ref('model') }} → database.schema.table
+            // Replace {{ ref('model') }} → [database.]schema.table
             result = JINJA_REF.replace(result) { match ->
                 val modelName = match.groupValues[1]
                 val node = index.nodes.values.firstOrNull { it.name == modelName }
                 if (node != null) {
-                    buildRelationName(node.database, node.schema, node.alias ?: node.name)
+                    buildRelationName(node.database.takeIf { includeDatabase }, node.schema, node.alias ?: node.name)
                 } else {
                     match.value
                 }
