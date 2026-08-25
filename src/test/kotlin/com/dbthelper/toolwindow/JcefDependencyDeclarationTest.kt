@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
- * LineageTab/DocsTab embed a JCEF browser. Build 262 (2026.2) moved `com.intellij.ui.jcef.*`
+ * LineageTab embeds a JCEF browser. Build 262 (2026.2) moved `com.intellij.ui.jcef.*`
  * out of the platform core into the bundled "Web Browser (JCEF)" plugin, so without an explicit
  * dependency the tool window dies with NoClassDefFoundError. Guards the descriptor wiring, which
  * nothing else in the build catches — the IntelliJ Plugin Verifier reports the plugin as

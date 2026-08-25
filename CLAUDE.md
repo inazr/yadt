@@ -37,11 +37,11 @@ To bump the plugin version, edit `pluginVersion` in `gradle.properties` (it is t
 ### Entry point: `src/main/resources/META-INF/plugin.xml`
 This is the wiring file — every Kotlin class is registered here as a service, extension, action, or listener. **When adding new functionality, this file usually needs an edit alongside the Kotlin code.** Notable gotchas baked in here:
 
-- Code-intelligence extensions (`completion.contributor`, `psi.referenceContributor`, `annotator`, `lang.documentationProvider`) are registered **three times** — once each for languages `TEXT`, `Jinja2`, and `SQL`. This is intentional: IDEA Community assigns `.sql` to `TEXT` (no SQL plugin), while DataSpell/PyCharm assign it to `Jinja2`/`SQL`. Dropping any of the three breaks one IDE.
+- Code-intelligence extensions (`psi.referenceContributor`, `annotator`, `lang.documentationProvider`) are registered **three times** — once each for languages `TEXT`, `Jinja2`, and `SQL`. This is intentional: IDEA Community assigns `.sql` to `TEXT` (no SQL plugin), while DataSpell/PyCharm assign it to `Jinja2`/`SQL`. Dropping any of the three breaks one IDE. `completion.contributor` is the exception: it is registered **once** with `language="any"`, which already covers all three.
 - The v2 documentation API (`platform.backend.documentation.targetProvider` + `psiTargetProvider`) is required for hover-without-modifier in DataSpell, otherwise the bundled SQL plugin hijacks hover before our PSI provider runs. See the comment in `plugin.xml` before changing the docs path.
 
 ### `core/` — manifest ingestion (the heart of the plugin)
-- `ManifestService` (project-level `@Service`, in `core/ManifestService.kt`) parses `<dbt-root>/target/manifest.json` on a background coroutine, builds a `ManifestIndex` (nodes, sources, macros, exposures + parent/child/path/relation maps), merges `catalog.json` via `CatalogParser`, then publishes `onManifestUpdated` on the project message bus (`ManifestUpdateListener.TOPIC`). Consumers (`LineageTab`, `DocsTab`, code-intel) subscribe — do not poll `cachedIndex` directly from UI code, listen to the topic.
+- `ManifestService` (project-level `@Service`, in `core/ManifestService.kt`) parses `<dbt-root>/target/manifest.json` on a background coroutine, builds a `ManifestIndex` (nodes, sources, macros, exposures + parent/child/path/relation maps), merges `catalog.json` via `CatalogParser`, then publishes `onManifestUpdated` on the project message bus (`ManifestUpdateListener.TOPIC`). Consumers (`LineageTab`, code-intel) subscribe — do not poll `cachedIndex` directly from UI code, listen to the topic.
 - `DbtProjectLocator` finds dbt roots via `FilenameIndex` for `dbt_project.yml`. It supports a multi-project workspace and a settings override, but **`ManifestService` currently parses only the first root** (see TODO at `core/ManifestService.kt:67`). Watch for this when touching multi-project behaviour.
 - `core/model/` holds data classes mirroring the dbt manifest schema. Jackson + `KotlinModule` is used directly — no generated DTOs.
 
@@ -52,6 +52,8 @@ This is the wiring file — every Kotlin class is registered here as a service, 
 Two tabs assembled in `DbtMainPanel` (which `DbtToolWindowFactory` instantiates):
 - **Lineage** (`LineageTab`) — JCEF webview hosting `resources/js/lineage.html` + `lineage.js` (Cytoscape.js with the ELK layout, run in a Web Worker). Kotlin↔JS messaging is how clicks/navigation are wired. The vendored JS files (`cytoscape.min.js`, `cytoscape-elk.js`, `elk.bundled.js`, `elk.worker.js`) are deliberate — no npm/CDN at runtime.
 - **Runner** (`DbtRunnerTab`) — uses `actions/DbtCommandRunner` to spawn the dbt CLI; streams stdout/stderr to a log component.
+
+The **docs sidebar** is not a third tab and has no Kotlin class of its own: it is rendered *inside* `lineage.html`/`lineage.js` and fed from Kotlin by `LineageTab.pushDocsToSidebar()` via `core/DocsPayloadBuilder`. (A `DocsTab.kt` existed until 0.5.1 but was never instantiated — it was deleted, don't resurrect it.)
 
 The factory sets the `ToolWindowContentUi.HIDE_ID_LABEL` client property so the bold "YADT" id label (the `<toolWindow id="YADT" ... displayName="YADT"/>` registered in `plugin.xml`) is not rendered before the tabs — keep this when touching the factory. (The stripe button still carries the `id` from `plugin.xml`, so the window stays discoverable.)
 

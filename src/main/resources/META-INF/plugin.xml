@@ -54,7 +54,7 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
          org.jetbrains.changelog Gradle plugin and injected via patchPluginXml. -->
 
     <depends>com.intellij.modules.platform</depends>
-    <!-- LineageTab/DocsTab embed a JCEF browser (com.intellij.ui.jcef.*). Up to build 261 those
+    <!-- LineageTab embeds a JCEF browser (com.intellij.ui.jcef.*). Up to build 261 those
          classes were part of the platform core, but 262 (2026.2) moved them into a separate bundled
          plugin "Web Browser (JCEF)" (id com.intellij.modules.jcef) whose classes are NOT reachable
          from our classloader unless we declare this dependency — without it the tool window dies with
