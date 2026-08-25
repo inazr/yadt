@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-25
+
 - Fixed the tool window failing to open on 2026.2 IDEs with `NoClassDefFoundError: com/intellij/ui/jcef/JBCefJSQuery$Response`. Build 262 moved JCEF out of the platform core into a separate bundled plugin, so the lineage/docs webviews were no longer reachable from YADT's classloader; the plugin now declares that dependency (optionally, so it keeps loading on 2025.1–2026.1 where JCEF is still part of the core)
 - The RUN button is no longer disabled when the **dbt Select** field is empty. An empty selector is a valid whole-project `dbt run`/`build`/`test`/`compile` (the command preview already showed it correctly, and the builder already omits `--select`), so it now runs — which also un-blocks the **dbt: Run / Stop** keymap action, previously a no-op in that state. Only **Preview** still requires a selector, because `dbt show` compiles a single node
 - The RUN/**Stop** toggle is now clickable for runs that were started past the button — the lineage graph's **Show preview rows** starts a `dbt show` directly, which used to leave a greyed-out "Stop" with no way to cancel it
@@ -85,7 +87,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/inazr/yadt/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/inazr/yadt/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/inazr/yadt/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/inazr/yadt/compare/v0.4.0...v0.4.1
