@@ -1,0 +1,10 @@
+<!--
+  Optional sub-descriptor for the "Web Browser (JCEF)" plugin (com.intellij.modules.jcef),
+  which is where build 262 (2026.2) moved com.intellij.ui.jcef.* out of the platform core.
+
+  It is intentionally empty: YADT contributes no extra extensions when JCEF is present. The
+  file exists solely because the <depends optional="true"> that wires the JCEF plugin into
+  our classloader parents needs a config-file (the IntelliJ Plugin Verifier reports a
+  structure warning otherwise). See the comment next to that <depends> in plugin.xml.
+-->
+<idea-plugin/>

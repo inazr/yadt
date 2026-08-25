@@ -144,7 +144,11 @@ class DbtActionBar(
         verbCombo.isEnabled = !value
         flagsButton.isEnabled = !value && availableFlags.isNotEmpty()
         clearButton.isEnabled = !value
-        if (!value) updateGoEnabled()
+        // Always delegate: updateGoEnabled force-enables while running, so the "Stop" label is
+        // actually clickable even when the run was started past the button (the lineage graph's
+        // "Show preview rows" calls runSpec directly and never fills the selector field, which
+        // used to leave a greyed-out "Stop" and no way to cancel).
+        updateGoEnabled()
     }
 
     /** Auto-fill the selector from the active editor (does not move the graph). */
@@ -365,7 +369,10 @@ class DbtActionBar(
     private fun updateGoEnabled() {
         if (running) { goButton.isEnabled = true; return }
         val verb = selectedVerb()
-        goButton.isEnabled = !verb.usesSelector || selectorField.text.isNotBlank()
+        // Gate on requiresSelector, not usesSelector: an empty selector is a legitimate
+        // whole-project run for run/build/test/compile, and DbtCommandBuilder already omits
+        // --select for it. Only Preview (dbt show) genuinely needs one.
+        goButton.isEnabled = !verb.requiresSelector || selectorField.text.isNotBlank()
     }
 
     companion object {

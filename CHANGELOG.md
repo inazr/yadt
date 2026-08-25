@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Fixed the tool window failing to open on 2026.2 IDEs with `NoClassDefFoundError: com/intellij/ui/jcef/JBCefJSQuery$Response`. Build 262 moved JCEF out of the platform core into a separate bundled plugin, so the lineage/docs webviews were no longer reachable from YADT's classloader; the plugin now declares that dependency (optionally, so it keeps loading on 2025.1–2026.1 where JCEF is still part of the core)
+- The RUN button is no longer disabled when the **dbt Select** field is empty. An empty selector is a valid whole-project `dbt run`/`build`/`test`/`compile` (the command preview already showed it correctly, and the builder already omits `--select`), so it now runs — which also un-blocks the **dbt: Run / Stop** keymap action, previously a no-op in that state. Only **Preview** still requires a selector, because `dbt show` compiles a single node
+- The RUN/**Stop** toggle is now clickable for runs that were started past the button — the lineage graph's **Show preview rows** starts a `dbt show` directly, which used to leave a greyed-out "Stop" with no way to cancel it
+
 ## [0.5.0] - 2026-06-22
 
 - New editor action **Convert: ref ↔ Relation** — select a `{{ ref() }}`/`{{ source() }}` (or a `database.schema.table` name) and convert it in place to the other form; direction is detected from the selection. Lives in a new **YADT** right-click submenu that also gathers the existing **Copy for Target DB** and **Paste as dbt Refs** actions (their shortcuts are unchanged)

@@ -10,6 +10,16 @@ enum class DbtVerb(val display: String) {
 
     /** Verbs that send `--select <selector>`. */
     val usesSelector: Boolean get() = this != GENERATE_DOCS
+
+    /**
+     * Verbs that cannot run at all without a selector — only `dbt show`, which compiles a
+     * *single* node and rejects selections matching more than one, so it has no whole-project
+     * form. Everything else is a valid command with `--select` omitted: `dbt run`/`build`/`test`
+     * then cover the whole project (or the project's `default` YAML selector, if it defines one),
+     * and `compile` writes every model into target/compiled/, which
+     * DbtMainPanel.copyCompiledToClipboard already concatenates.
+     */
+    val requiresSelector: Boolean get() = this == PREVIEW
 }
 
 data class DbtCommandSpec(

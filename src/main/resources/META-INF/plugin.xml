@@ -54,6 +54,16 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
          org.jetbrains.changelog Gradle plugin and injected via patchPluginXml. -->
 
     <depends>com.intellij.modules.platform</depends>
+    <!-- LineageTab/DocsTab embed a JCEF browser (com.intellij.ui.jcef.*). Up to build 261 those
+         classes were part of the platform core, but 262 (2026.2) moved them into a separate bundled
+         plugin "Web Browser (JCEF)" (id com.intellij.modules.jcef) whose classes are NOT reachable
+         from our classloader unless we declare this dependency — without it the tool window dies with
+         NoClassDefFoundError: com/intellij/ui/jcef/JBCefJSQuery$Response.
+         It must stay *optional*: the id does not exist before 262, and a required <depends> on a
+         missing plugin makes the IDE refuse to load YADT at all (sinceBuild is 251).
+         A resolved optional <depends> still contributes the target plugin's content modules to our
+         classloader parents, which is exactly what makes com.intellij.ui.jcef resolvable on 262+. -->
+    <depends optional="true" config-file="yadt-jcef.xml">com.intellij.modules.jcef</depends>
 
     <resource-bundle>messages.DbtHelperBundle</resource-bundle>
 
