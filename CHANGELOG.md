@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Lineage: models inside a column are now ordered alphabetically wherever that is (nearly) free. The layout engine has many equally good optima and used to keep whichever one it reached first, which is why the order looked arbitrary; the graph now picks the alphabetical one from among them. A column keeps its alphabetical order only while it costs at most 5% more edge crossings than the engine's own order, or 2 more, whichever is the larger allowance — where sorting would be expensive, the readable layout wins. The flat allowance is what makes this work on small graphs, where 5% of a handful of crossings rounds down to no leeway at all. Group boxes keep their exact bounds, and "+ N more" stubs follow the model they belong to
 - Lineage: cards are now aligned to the start of their layer instead of centered in it. Card width follows the model name, so a column of differently-named models used to sit ragged on both sides; the column now reads as a list. Applies to left-to-right (left edges align) and top-to-bottom (top edges align) layouts alike; the group boxes themselves are unchanged
 
 ## [0.5.1] - 2026-08-25

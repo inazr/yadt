@@ -110,6 +110,185 @@
         };
     })();
 
+    // --- ALPHA-SORT BEGIN (the layout test extracts this block verbatim - keep the markers)
+    // ELK's crossing minimization has many equally good optima and keeps whichever one its
+    // heuristic reaches first, which is why the order inside a column looks arbitrary. This
+    // pass picks the alphabetical one from among them. It runs on the *finished* layout -
+    // ELK is never reconfigured - and only permutes nodes that share a column AND a cluster
+    // box. Each node's exclusive neighbours ("+ N more" stubs) travel with it, because
+    // tearing a neighbourhood apart is what actually costs crossings. A permutation is kept
+    // only while the total crossing count stays within CROSSING_TOLERANCE of ELK's own.
+    // Whichever of the two is more generous. The percentage alone is nearly meaningless on
+    // small graphs - at 16 crossings it permits 16.8, i.e. not a single extra one - so the
+    // flat slack is what actually opens up short columns, while the percentage carries the
+    // large graphs where 2 crossings would be noise.
+    var CROSSING_TOLERANCE = 1.05;  // at most 5% more crossings than the engine's own order...
+    var CROSSING_SLACK = 2;         // ...or 2 more, whichever allows more
+    var CROSSING_EDGE_LIMIT = 2000; // counting is pairwise, so skip the pass on huge graphs
+
+    // Cytoscape positions are centres. Along the layer axis we need the *leading* edge:
+    // nodes of one layer share it exactly (that is what elkNodeOptionsFor aligns them to),
+    // while their centres drift apart as soon as the cards differ in size.
+    function layerKey(n, dir) {
+        var p = n.position();
+        return String(Math.round(dir === 'TB' ? p.y - nodeSize(n, 'TB_layer') / 2 : p.x - nodeSize(n, 'LR_layer') / 2));
+    }
+
+    // Size along an axis, taken from the data the cards were built with.
+    function nodeSize(n, what) {
+        var w = +n.data('w') || 0, h = +n.data('h') || 0;
+        if (what === 'TB_layer') return h;   // TB: layers advance along y
+        if (what === 'LR_layer') return w;   // LR: layers advance along x
+        return what === 'TB' ? w : h;        // in-layer extent
+    }
+
+    function inLayerPos(n, dir) { var p = n.position(); return dir === 'TB' ? p.x : p.y; }
+
+    function setInLayerPos(n, v, dir) {
+        var p = n.position();
+        n.position(dir === 'TB' ? { x: v, y: p.y } : { x: p.x, y: v });
+    }
+
+    // Re-stack `order` into the slots the nodes already occupy, keeping the original
+    // edge-to-edge gaps. Because the sizes are only permuted, the block starts and ends
+    // exactly where it did - no overlaps, and every cluster box keeps its bounds.
+    function repackInOrder(current, order, dir) {
+        var sizes = current.map(function (n) { return nodeSize(n, dir); });
+        var lead = inLayerPos(current[0], dir) - sizes[0] / 2;
+        var gaps = [];
+        for (var i = 1; i < current.length; i++) {
+            gaps.push((inLayerPos(current[i], dir) - sizes[i] / 2) -
+                      (inLayerPos(current[i - 1], dir) + sizes[i - 1] / 2));
+        }
+        var cursor = lead;
+        order.forEach(function (n, i) {
+            var s = nodeSize(n, dir);
+            setInLayerPos(n, cursor + s / 2, dir);
+            cursor += s + (gaps[i] || 0);
+        });
+    }
+
+    // Crossings among edge pairs where at least one edge moved. Pairs of untouched edges
+    // cannot change, so skipping them keeps the delta exact and the cost low.
+    function crossingsTouching(edges, movedIds, dir) {
+        var c = 0;
+        for (var i = 0; i < edges.length; i++) {
+            var a = edges[i];
+            var aMoved = !!movedIds[a.id()];
+            var as = inLayerPos(a.source(), dir), at = inLayerPos(a.target(), dir);
+            for (var j = i + 1; j < edges.length; j++) {
+                var b = edges[j];
+                if (!aMoved && !movedIds[b.id()]) continue;
+                if ((as - inLayerPos(b.source(), dir)) * (at - inLayerPos(b.target(), dir)) < 0) c++;
+            }
+        }
+        return c;
+    }
+
+    function totalCrossings(edges, dir) {
+        var all = {};
+        edges.forEach(function (e) { all[e.id()] = true; });
+        return crossingsTouching(edges, all, dir);
+    }
+
+    // A neighbour hanging off exactly this one node is part of it for ordering purposes.
+    // Satellites inside a *different* box are left alone - moving them would resize it.
+    function exclusiveSatellites(node) {
+        var out = [];
+        node.connectedEdges().forEach(function (e) {
+            var other = e.source().id() === node.id() ? e.target() : e.source();
+            if (other.isParent() || other.degree(false) !== 1) return;
+            var op = other.data('parent') || '';
+            if (op && op !== (node.data('parent') || '')) return;
+            out.push(other);
+        });
+        return out;
+    }
+
+    function alphabetizeInterchangeableGroups(cyRef, dir, tolerance, slack) {
+        if (!cyRef) return 0;
+        var edges = cyRef.edges().toArray();
+        if (!edges.length || edges.length > CROSSING_EDGE_LIMIT) return 0;
+
+        // Stubs are satellites, not content: they follow their owner instead of being
+        // sorted among themselves as "+ 1 more", "+ 2 more", ...
+        var groups = {};
+        cyRef.nodes().forEach(function (n) {
+            if (n.isParent() || n.data('resourceType') === 'stub') return;
+            var key = (n.data('parent') || '') + '#' + layerKey(n, dir);
+            (groups[key] = groups[key] || []).push(n);
+        });
+
+        var current = totalCrossings(edges, dir);
+        var budget = Math.max(current * tolerance, current + slack);
+        var sorted = 0;
+
+        Object.keys(groups).forEach(function (key) {
+            var members = groups[key];
+            if (members.length < 2) return;
+
+            var inPlace = members.slice().sort(function (a, b) { return inLayerPos(a, dir) - inLayerPos(b, dir); });
+            var byName = members.slice().sort(function (a, b) {
+                var an = String(a.data('name') || a.id()).toLowerCase();
+                var bn = String(b.data('name') || b.id()).toLowerCase();
+                return an < bn ? -1 : an > bn ? 1 : 0;
+            });
+            if (inPlace.every(function (n, i) { return n.id() === byName[i].id(); })) {
+                sorted++;
+                return;
+            }
+
+            // Rank of each member in the target order, so its satellites can follow.
+            var rankOf = {};
+            byName.forEach(function (n, i) { rankOf[n.id()] = i; });
+
+            var satsByLayer = {};
+            members.forEach(function (n) {
+                exclusiveSatellites(n).forEach(function (s) {
+                    var k = layerKey(s, dir);
+                    (satsByLayer[k] = satsByLayer[k] || []).push({ node: s, rank: rankOf[n.id()] });
+                });
+            });
+
+            var touched = members.slice();
+            Object.keys(satsByLayer).forEach(function (k) {
+                satsByLayer[k].forEach(function (s) { touched.push(s.node); });
+            });
+            var movedIds = {};
+            touched.forEach(function (n) {
+                n.connectedEdges().forEach(function (e) { movedIds[e.id()] = true; });
+            });
+            var restore = touched.map(function (n) {
+                var p = n.position();
+                return { node: n, x: p.x, y: p.y };
+            });
+
+            var before = crossingsTouching(edges, movedIds, dir);
+
+            repackInOrder(inPlace, byName, dir);
+            Object.keys(satsByLayer).forEach(function (k) {
+                var sats = satsByLayer[k];
+                var order = sats.slice().sort(function (a, b) {
+                    return a.rank - b.rank || inLayerPos(a.node, dir) - inLayerPos(b.node, dir);
+                }).map(function (s) { return s.node; });
+                var here = sats.map(function (s) { return s.node; })
+                               .sort(function (a, b) { return inLayerPos(a, dir) - inLayerPos(b, dir); });
+                repackInOrder(here, order, dir);
+            });
+
+            var after = crossingsTouching(edges, movedIds, dir);
+
+            if (current - before + after <= budget) {
+                current = current - before + after;
+                sorted++;
+            } else {
+                restore.forEach(function (r) { r.node.position({ x: r.x, y: r.y }); });
+            }
+        });
+        return sorted;
+    }
+    // --- ALPHA-SORT END
+
     function schemaColor(schema) {
         var h = 0;
         for (var i = 0; i < schema.length; i++) {
@@ -429,6 +608,7 @@
         cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(currentLayoutDir) })
             .run()
             .promiseOn('layoutstop').then(function () {
+                alphabetizeInterchangeableGroups(cy, currentLayoutDir, CROSSING_TOLERANCE, CROSSING_SLACK);
                 // Anchor: pan by difference so the toggled node stays under the cursor
                 var newRendered = node.renderedPosition();
                 var pan = cy.pan();
@@ -871,6 +1051,7 @@
             cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(layoutDirection) })
                 .run()
                 .promiseOn('layoutstop').then(function () {
+                    alphabetizeInterchangeableGroups(cy, layoutDirection, CROSSING_TOLERANCE, CROSSING_SLACK);
                     var pos = {};
                     cy.nodes().forEach(function (n) { var p = n.position(); pos[n.id()] = { x: p.x, y: p.y }; });
                     layoutCache.put(cacheKey, pos);
