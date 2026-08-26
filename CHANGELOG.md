@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Lineage: cards are now aligned to the start of their layer instead of centered in it. Card width follows the model name, so a column of differently-named models used to sit ragged on both sides; the column now reads as a list. Applies to left-to-right (left edges align) and top-to-bottom (top edges align) layouts alike; the group boxes themselves are unchanged
+
 ## [0.5.1] - 2026-08-25
 
 - Fixed the tool window failing to open on 2026.2 IDEs with `NoClassDefFoundError: com/intellij/ui/jcef/JBCefJSQuery$Response`. Build 262 moved JCEF out of the platform core into a separate bundled plugin, so the lineage/docs webviews were no longer reachable from YADT's classloader; the plugin now declares that dependency (optionally, so it keeps loading on 2025.1–2026.1 where JCEF is still part of the core)

@@ -47,6 +47,25 @@
         return layoutDir === 'TB' ? 'DOWN' : 'RIGHT';
     }
 
+    // A layer is as wide as its widest card, and ELK centers narrower cards inside it.
+    // Card widths come from measureCardWidth(), i.e. from the model name, so a column of
+    // cards ends up ragged on both sides. Aligning every card to the start of its layer
+    // instead makes the column read as a list.
+    //
+    // Two things to know before touching this: 'elk.alignment' is a *node* option — putting
+    // it in ELK_LAYOUT_OPTIONS (graph level) has no effect at all — and the axis it refers
+    // to is the one the layers advance along, so LR needs LEFT while TB needs TOP.
+    function nodeAlignmentFor(layoutDir) {
+        return layoutDir === 'TB' ? 'TOP' : 'LEFT';
+    }
+
+    // Cluster boxes are sized by their content and carry no width of their own, so aligning
+    // them would only shift a whole group; they keep ELK's default.
+    function elkNodeOptionsFor(layoutDir) {
+        var aligned = { 'elk.alignment': nodeAlignmentFor(layoutDir) };
+        return function (node) { return node.isParent() ? {} : aligned; };
+    }
+
     var KNOWN_PREFIXES = new Set(['col', 'tag', 'mat', 'schema', 'type', 'pkg']);
 
     function tokenize(query) {
@@ -407,7 +426,7 @@
         var elkOpts = Object.assign({}, ELK_LAYOUT_OPTIONS, {
             'elk.direction': elkDirectionFor(currentLayoutDir)
         });
-        cy.layout({ name: 'elk', fit: false, elk: elkOpts })
+        cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(currentLayoutDir) })
             .run()
             .promiseOn('layoutstop').then(function () {
                 // Anchor: pan by difference so the toggled node stays under the cursor
@@ -849,7 +868,7 @@
             });
             finalizeLayout();
         } else {
-            cy.layout({ name: 'elk', fit: false, elk: elkOpts })
+            cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(layoutDirection) })
                 .run()
                 .promiseOn('layoutstop').then(function () {
                     var pos = {};
