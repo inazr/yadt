@@ -79,6 +79,7 @@ The factory sets the `ToolWindowContentUi.HIDE_ID_LABEL` client property so the 
 - **Do not bump `untilBuild`.** It is intentionally left empty in `gradle.properties` so the plugin loads on future IDE versions. (See commit `87fd113`.)
 - **Path strings from the manifest are normalised** with `.replace('\\', '/')` because dbt on Windows writes backslashes into `original_file_path`. Preserve this when adding new map keys derived from manifest paths.
 - The plugin must remain `DumbAware` where used (`DbtToolWindowFactory` already is) — manifest parsing must work during indexing.
+- **Services must not take an injected `CoroutineScope`.** YADT bundles its own kotlinx-coroutines (`implementation(libs.coroutines.core)`), so the parameter type is a different class than the platform's; the IDE then fails at runtime with "does not define any of supported signatures" and the service never exists — invisible to `verifyPlugin`. Create the scope in the service (`CoroutineScope(SupervisorJob() + Dispatchers.IO)`) and cancel it in `dispose()`, as `ManifestService` and `DctSchemaResolver` do; `DctSchemaResolverConstructorTest` guards the latter.
 
 ## Releasing & signing
 

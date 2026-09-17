@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,10 +31,13 @@ import kotlinx.coroutines.sync.withLock
  * schema provider only reads a field; announces changes on [DctSchemaListener.TOPIC].
  */
 @Service(Service.Level.PROJECT)
-class DctSchemaResolver(private val project: Project, private val cs: CoroutineScope) : Disposable {
+class DctSchemaResolver(private val project: Project) : Disposable {
 
     private val logger = Logger.getInstance(DctSchemaResolver::class.java)
     private val refreshLock = Mutex()
+    // Own scope, not an injected one: YADT bundles kotlinx-coroutines, so an injected CoroutineScope
+    // parameter is a different class than the platform's and the service can't be constructed.
+    private val cs = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile
     var schemaPath: Path? = null
@@ -135,7 +140,9 @@ class DctSchemaResolver(private val project: Project, private val cs: CoroutineS
         }
     }
 
-    override fun dispose() {}
+    override fun dispose() {
+        cs.cancel()
+    }
 
     companion object {
         private const val GITHUB_SCHEMA_BASE =
