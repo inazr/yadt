@@ -20,59 +20,27 @@ class LineageGraphBuilder(
         val visitedNodes = mutableMapOf<String, Int>() // id -> depth
         val edges = mutableListOf<LineageEdge>()
 
-        // BFS upstream (negative depth)
-        val upstreamResult = bfs(
-            startId = currentNodeId,
-            maxDepth = upstreamDepth,
-            direction = Direction.UPSTREAM,
-            visitedNodes = visitedNodes,
-            edges = edges
-        )
-
-        // BFS downstream (positive depth)
-        val downstreamResult = bfs(
-            startId = currentNodeId,
-            maxDepth = downstreamDepth,
-            direction = Direction.DOWNSTREAM,
-            visitedNodes = visitedNodes,
-            edges = edges
+        // BFS upstream (negative depth), then downstream (positive depth)
+        val boundaries = mapOf(
+            Direction.UPSTREAM to bfs(currentNodeId, upstreamDepth, Direction.UPSTREAM, visitedNodes, edges),
+            Direction.DOWNSTREAM to bfs(currentNodeId, downstreamDepth, Direction.DOWNSTREAM, visitedNodes, edges),
         )
 
         // Expand specific boundary nodes with extra depth
-        val expandStep = 5
         for (boundaryId in expandedBoundaryNodes) {
-            if (boundaryId in upstreamResult.boundaryHiddenCounts) {
-                bfs(
-                    startId = boundaryId,
-                    maxDepth = expandStep,
-                    direction = Direction.UPSTREAM,
-                    visitedNodes = visitedNodes,
-                    edges = edges
-                )
-            }
-            if (boundaryId in downstreamResult.boundaryHiddenCounts) {
-                bfs(
-                    startId = boundaryId,
-                    maxDepth = expandStep,
-                    direction = Direction.DOWNSTREAM,
-                    visitedNodes = visitedNodes,
-                    edges = edges
-                )
+            for ((direction, boundaryIds) in boundaries) {
+                if (boundaryId in boundaryIds) bfs(boundaryId, EXPAND_STEP, direction, visitedNodes, edges)
             }
         }
 
         // Ensure current node is included
         visitedNodes[currentNodeId] = 0
 
-        var lineageNodes = visitedNodes.mapNotNull { (id, depth) ->
-            toLineageNode(id, depth, id == currentNodeId)
-        }.toMutableList()
-
         // Tests are never shown as separate cards
-        lineageNodes = lineageNodes.filter { it.resourceType != "test" }.toMutableList()
-        if (!showExposures) {
-            lineageNodes = lineageNodes.filter { it.resourceType != "exposure" }.toMutableList()
-        }
+        var lineageNodes = visitedNodes
+            .mapNotNull { (id, depth) -> toLineageNode(id, depth, id == currentNodeId) }
+            .filter { it.resourceType != "test" && (showExposures || it.resourceType != "exposure") }
+            .toMutableList()
 
         // Cluster nodes into compound parent groups based on the active cluster mode
         val clusterMode = project?.let {
@@ -82,70 +50,25 @@ class LineageGraphBuilder(
         if (clusterMode != "none") {
             val parentNodesById = mutableMapOf<String, LineageNode>()
             val withParents = lineageNodes.map { n ->
-                if (n.resourceType == "stub" || n.resourceType == "cluster") return@map n
-                val pid = parentIdFor(n, clusterMode)
-                if (pid == null) {
-                    n
-                } else {
-                    if (!parentNodesById.containsKey(pid)) {
-                        parentNodesById[pid] = LineageNode(
-                            id = pid,
-                            name = parentLabelFor(pid),
-                            resourceType = "cluster",
-                            schema = null, database = null, materialization = null,
-                            filePath = null, description = null, columns = emptyList(),
-                            depth = 0,
-                            isCurrent = false,
-                            isParent = true
-                        )
-                    }
-                    n.copy(parent = pid)
+                val pid = parentIdFor(n, clusterMode) ?: return@map n
+                parentNodesById.getOrPut(pid) {
+                    LineageNode(id = pid, name = parentLabelFor(pid), resourceType = "cluster", depth = 0, isParent = true)
                 }
-            }.toMutableList()
-            withParents.addAll(0, parentNodesById.values.toList())
-            lineageNodes.clear()
-            lineageNodes.addAll(withParents)
+                n.copy(parent = pid)
+            }
+            lineageNodes = (parentNodesById.values + withParents).toMutableList()
         }
 
         // Recalculate stub counts — exclude nodes already visible after expands
         val visibleNodeIds = visitedNodes.keys
         val stubEdges = mutableListOf<LineageEdge>()
-        for ((boundaryId, _) in upstreamResult.boundaryHiddenCounts) {
-            if (boundaryId in expandedBoundaryNodes) continue
-            // Count upstream neighbors of this boundary that are NOT in the visible graph
-            val hiddenNeighbors = getNeighbors(boundaryId, Direction.UPSTREAM).count { it !in visibleNodeIds }
-            if (hiddenNeighbors == 0) continue
-            val stubId = "__stub_upstream_$boundaryId"
-            lineageNodes.add(LineageNode(
-                id = stubId,
-                name = "+ $hiddenNeighbors more",
-                resourceType = "stub",
-                schema = null, database = null, materialization = null,
-                filePath = null, description = null, columns = emptyList(),
-                depth = -(upstreamDepth + 1),
-                isCurrent = false,
-                stubDirection = "upstream",
-                boundaryNodeId = boundaryId
-            ))
-            stubEdges.add(LineageEdge(fromNodeId = stubId, toNodeId = boundaryId))
-        }
-        for ((boundaryId, _) in downstreamResult.boundaryHiddenCounts) {
-            if (boundaryId in expandedBoundaryNodes) continue
-            val hiddenNeighbors = getNeighbors(boundaryId, Direction.DOWNSTREAM).count { it !in visibleNodeIds }
-            if (hiddenNeighbors == 0) continue
-            val stubId = "__stub_downstream_$boundaryId"
-            lineageNodes.add(LineageNode(
-                id = stubId,
-                name = "+ $hiddenNeighbors more",
-                resourceType = "stub",
-                schema = null, database = null, materialization = null,
-                filePath = null, description = null, columns = emptyList(),
-                depth = downstreamDepth + 1,
-                isCurrent = false,
-                stubDirection = "downstream",
-                boundaryNodeId = boundaryId
-            ))
-            stubEdges.add(LineageEdge(fromNodeId = boundaryId, toNodeId = stubId))
+        for ((direction, boundaryIds) in boundaries) {
+            val stubDepth = if (direction == Direction.UPSTREAM) -(upstreamDepth + 1) else downstreamDepth + 1
+            for (boundaryId in boundaryIds) {
+                if (boundaryId in expandedBoundaryNodes) continue
+                val hidden = getNeighbors(boundaryId, direction).count { it !in visibleNodeIds }
+                if (hidden > 0) addBoundaryStub(lineageNodes, stubEdges, boundaryId, direction, hidden, stubDepth)
+            }
         }
 
         // Filter edges — only keep edges where both endpoints are in the graph
@@ -186,17 +109,7 @@ class LineageGraphBuilder(
         for (e in skipEdges) {
             val gap = (layerMap[e.toNodeId]!! - layerMap[e.fromNodeId]!! - 1)
             val stubId = "__stub_skip_${e.fromNodeId}__to__${e.toNodeId}"
-            newStubNodes.add(LineageNode(
-                id = stubId,
-                name = "$gap hidden hops",
-                resourceType = "stub",
-                schema = null, database = null, materialization = null,
-                filePath = null, description = null, columns = emptyList(),
-                depth = 0,
-                isCurrent = false,
-                stubDirection = "skip",
-                boundaryNodeId = e.fromNodeId
-            ))
+            newStubNodes.add(stubNode(stubId, "$gap hidden hops", depth = 0, direction = "skip", boundaryId = e.fromNodeId))
             newStubEdges.add(LineageEdge(fromNodeId = e.fromNodeId, toNodeId = stubId))
             newStubEdges.add(LineageEdge(fromNodeId = stubId, toNodeId = e.toNodeId))
         }
@@ -256,27 +169,10 @@ class LineageGraphBuilder(
         // Selection cards all sit at depth 0, so boundary stubs use a fixed +/-1
         // (the BFS-depth convention in build() doesn't apply to a flat selection set).
         for (id in visibleIds) {
-            val hiddenUp = index.getUpstream(id).count { it !in visibleIds }
-            if (hiddenUp > 0) {
-                val stubId = "__stub_upstream_$id"
-                nodes.add(LineageNode(
-                    id = stubId, name = "+ $hiddenUp more", resourceType = "stub",
-                    schema = null, database = null, materialization = null, filePath = null,
-                    description = null, columns = emptyList(), depth = -1, isCurrent = false,
-                    stubDirection = "upstream", boundaryNodeId = id
-                ))
-                edges.add(LineageEdge(fromNodeId = stubId, toNodeId = id))
-            }
-            val hiddenDown = index.getDownstream(id).count { it !in visibleIds }
-            if (hiddenDown > 0) {
-                val stubId = "__stub_downstream_$id"
-                nodes.add(LineageNode(
-                    id = stubId, name = "+ $hiddenDown more", resourceType = "stub",
-                    schema = null, database = null, materialization = null, filePath = null,
-                    description = null, columns = emptyList(), depth = 1, isCurrent = false,
-                    stubDirection = "downstream", boundaryNodeId = id
-                ))
-                edges.add(LineageEdge(fromNodeId = id, toNodeId = stubId))
+            for (direction in Direction.entries) {
+                val hidden = getNeighbors(id, direction).count { it !in visibleIds }
+                val stubDepth = if (direction == Direction.UPSTREAM) -1 else 1
+                if (hidden > 0) addBoundaryStub(nodes, edges, id, direction, hidden, stubDepth)
             }
         }
 
@@ -288,18 +184,16 @@ class LineageGraphBuilder(
         )
     }
 
-    data class BfsResult(val boundaryHiddenCounts: Map<String, Int>)
-
     private fun bfs(
         startId: String,
         maxDepth: Int,
         direction: Direction,
         visitedNodes: MutableMap<String, Int>,
         edges: MutableList<LineageEdge>
-    ): BfsResult {
+    ): Set<String> {
         val queue = LinkedList<Pair<String, Int>>() // (nodeId, currentDepth)
         val visited = mutableSetOf(startId)
-        val boundaryHiddenCounts = mutableMapOf<String, Int>() // boundaryNodeId -> count of hidden beyond it
+        val boundaryIds = LinkedHashSet<String>() // at maxDepth with hidden neighbors beyond
 
         // Seed with immediate neighbors
         val neighbors = getNeighbors(startId, direction)
@@ -324,13 +218,7 @@ class LineageGraphBuilder(
             }
 
             val nextNeighbors = getNeighbors(nodeId, direction)
-            // Track boundary nodes — at maxDepth with hidden neighbors beyond
-            if (depth == maxDepth) {
-                val hiddenNeighbors = nextNeighbors.count { it !in visited }
-                if (hiddenNeighbors > 0) {
-                    boundaryHiddenCounts[nodeId] = hiddenNeighbors
-                }
-            }
+            if (depth == maxDepth && nextNeighbors.any { it !in visited }) boundaryIds += nodeId
             for (nextId in nextNeighbors) {
                 addEdge(edges, nodeId, nextId, direction)
                 if (nextId !in visited) {
@@ -339,7 +227,7 @@ class LineageGraphBuilder(
             }
         }
 
-        return BfsResult(boundaryHiddenCounts)
+        return boundaryIds
     }
 
     private fun getNeighbors(nodeId: String, direction: Direction): List<String> {
@@ -362,18 +250,7 @@ class LineageGraphBuilder(
     }
 
     private fun toLineageNode(id: String, depth: Int, isCurrent: Boolean): LineageNode? {
-        // Try nodes first
         index.nodes[id]?.let { node ->
-            val hints = SearchIndexBuilder.buildHints(
-                uniqueId = id,
-                name = node.name,
-                schema = node.schema,
-                materialization = node.config["materialized"] as? String,
-                resourceType = node.resourceType,
-                packageName = node.packageName,
-                columnNames = node.columns.keys.toList(),
-                tags = node.tags
-            )
             return LineageNode(
                 id = id,
                 name = node.name,
@@ -383,76 +260,72 @@ class LineageGraphBuilder(
                 materialization = node.config["materialized"] as? String,
                 filePath = node.originalFilePath,
                 description = node.description.ifEmpty { null },
-                columns = node.columns.values.map { col ->
-                    ColumnNode(col.name, col.dataType, col.description.ifEmpty { null }, col.isPrimaryKey)
-                },
+                columns = columnNodes(node.columns),
                 depth = depth,
-                isCurrent = isCurrent,
-                searchHints = hints
-            )
+                isCurrent = isCurrent
+            ).withSearchHints(node.packageName, node.tags)
         }
-
-        // Try sources
         index.sources[id]?.let { source ->
-            val hints = SearchIndexBuilder.buildHints(
-                uniqueId = id,
-                name = "${source.sourceName}.${source.name}",
-                schema = source.schema,
-                materialization = null,
-                resourceType = "source",
-                packageName = source.packageName,
-                columnNames = source.columns.keys.toList(),
-                tags = source.tags
-            )
             return LineageNode(
                 id = id,
                 name = "${source.sourceName}.${source.name}",
                 resourceType = "source",
                 schema = source.schema,
                 database = source.database,
-                materialization = null,
                 filePath = source.originalFilePath,
                 description = source.description.ifEmpty { null },
-                columns = source.columns.values.map { col ->
-                    ColumnNode(col.name, col.dataType, col.description.ifEmpty { null }, col.isPrimaryKey)
-                },
+                columns = columnNodes(source.columns),
                 depth = depth,
                 isCurrent = isCurrent,
-                searchHints = hints,
                 freshness = freshnessByUniqueId[id]
-            )
+            ).withSearchHints(source.packageName, source.tags)
         }
-
-        // Try exposures
         index.exposures[id]?.let { exposure ->
-            val hints = SearchIndexBuilder.buildHints(
-                uniqueId = id,
-                name = exposure.name,
-                schema = null,
-                materialization = null,
-                resourceType = "exposure",
-                packageName = exposure.packageName,
-                columnNames = emptyList(),
-                tags = exposure.tags
-            )
             return LineageNode(
                 id = id,
                 name = exposure.name,
                 resourceType = "exposure",
-                schema = null,
-                database = null,
-                materialization = null,
                 filePath = exposure.originalFilePath,
                 description = exposure.description.ifEmpty { null },
-                columns = emptyList(),
                 depth = depth,
-                isCurrent = isCurrent,
-                searchHints = hints
-            )
+                isCurrent = isCurrent
+            ).withSearchHints(exposure.packageName, exposure.tags)
         }
-
         return null
     }
+
+    private fun columnNodes(columns: Map<String, DbtColumn>): List<ColumnNode> =
+        columns.values.map { ColumnNode(it.name, it.dataType, it.description.ifEmpty { null }, it.isPrimaryKey) }
+
+    private fun LineageNode.withSearchHints(packageName: String, tags: List<String>): LineageNode = copy(
+        searchHints = SearchIndexBuilder.buildHints(
+            uniqueId = id,
+            name = name,
+            schema = schema,
+            materialization = materialization,
+            resourceType = resourceType,
+            packageName = packageName,
+            columnNames = columns.map { it.name },
+            tags = tags
+        )
+    )
+
+    /** A "+ N more" card for [hidden] neighbors of [boundaryId] outside the graph, wired to that boundary. */
+    private fun addBoundaryStub(
+        nodes: MutableList<LineageNode>,
+        edges: MutableList<LineageEdge>,
+        boundaryId: String,
+        direction: Direction,
+        hidden: Int,
+        depth: Int
+    ) {
+        val stubId = "__stub_${direction.wire}_$boundaryId"
+        nodes += stubNode(stubId, "+ $hidden more", depth, direction.wire, boundaryId)
+        addEdge(edges, boundaryId, stubId, direction)
+    }
+
+    private fun stubNode(id: String, name: String, depth: Int, direction: String, boundaryId: String) =
+        LineageNode(id = id, name = name, resourceType = "stub", depth = depth, stubDirection = direction, boundaryNodeId = boundaryId)
 
     /**
      * Compute a layer index per node: root upstream nodes get 0; for others,
@@ -518,7 +391,12 @@ class LineageGraphBuilder(
         else -> ""
     }
 
-    private enum class Direction {
-        UPSTREAM, DOWNSTREAM
+    private enum class Direction(val wire: String) {
+        UPSTREAM("upstream"), DOWNSTREAM("downstream")
+    }
+
+    private companion object {
+        /** Extra levels revealed each time the user expands a boundary stub. */
+        const val EXPAND_STEP = 5
     }
 }
