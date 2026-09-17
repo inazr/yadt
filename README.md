@@ -14,7 +14,8 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 - **Run status & freshness** — color lineage nodes by their last `dbt run`/`build` result (the default), with test-failure badges and source-freshness state, updated live as commands run.
 - **Selector-driven graph** — type a dbt selector (`tag:`, `path:`, `source:`, `+model`, `model+`, globs) to drive what the graph shows; resolved live or via `dbt ls`.
 - **Docs sidebar** — columns, tests, SQL, and metadata for the selected model, side-by-side with the graph.
-- **Code intelligence** — autocomplete and go-to-definition for `ref()`, `source()`, and `macro()`; hover for column info; warnings on unresolved references. Works in `.sql` and Jinja files.
+- **Code intelligence** — autocomplete and go-to-definition for `ref()`, `source()`, and `macro()`; hover for column info; warnings on unresolved references. Works in `.sql` and Jinja files, and in dbt Charts boards.
+- **dbt Charts boards** — completion, hover docs, and structural errors for [dbt Charts](https://dbtcharts.com) board YAML, driven by the schema of your installed `dct`; plus `ref()` / `source()` intelligence inside board queries. See [dbt Charts boards](#dbt-charts-boards).
 - **Runner** — run, test, compile, preview, and regenerate docs without leaving the IDE. Target selector and live output log.
 - **Copy & paste helpers** — copy SQL with refs resolved to `db.schema.table`, or paste SQL with table names converted back into `ref()` / `source()` calls.
 
@@ -31,6 +32,7 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 - JetBrains IDE **2025.1** or later
 - A dbt project with `manifest.json` (run `dbt compile` or `dbt docs generate` first)
 - dbt CLI installed and accessible
+- Optional, for dbt Charts board editing: the dbt Charts CLI `dct` (`uv tool install dbt-charts`)
 
 ---
 
@@ -46,6 +48,8 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 | Setting | Description | Default |
 |---------|-------------|---------|
 | dbt executable path | Path to the dbt CLI binary | `dbt` (auto-detected from PATH) |
+| dct executable path | Path to the dbt Charts CLI; its installed schema drives board editing | `dct` (auto-detected from PATH) |
+| Download the board schema from GitHub | Fallback when `dct` isn't installed: fetch the newest released dbt Charts schema, sha256-verified and cached | off |
 | Project root override | Absolute path to the dbt project root | auto-detect from `dbt_project.yml` |
 | Active target | Target from `profiles.yml` used for compilation | default target |
 | Upstream depth | Parent levels shown above the current node (1–20) | 1 |
@@ -62,6 +66,26 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 | Colored dbt output | Pass `--use-colors`; render ANSI in the Runner panel | off |
 | Auto-parse on save | Background `dbt parse` after saving a model/YAML | on |
 | Auto-parse also for dbt Cloud CLI | Also auto-parse via dbt Cloud CLI (network per save) | off |
+
+---
+
+## dbt Charts boards
+
+[dbt Charts](https://dbtcharts.com) (`dct`) describes dashboards as YAML boards. YADT makes those board files first-class in the editor.
+
+**Which files count as boards:** `.yml` / `.yaml` files anywhere below the `charts/` directory of a project whose root contains `dbt_charts.yml` — the same layout `dct` uses. `meta.yml` cascade files and `dbt_charts.yml` itself are not treated as boards.
+
+**What you get in a board:**
+- **Schema-backed editing** — completion for board, query, and chart keys, hover descriptions, and structural errors (e.g. an unknown chart `type`). The status bar shows *Schema: dbt Charts board* when it is active.
+- **dbt code intelligence in queries** — `ref()` / `source()` completion, Cmd/Ctrl+Click navigation, hover docs, and unresolved-reference warnings, exactly as in `.sql` models. dbt macro completion is not offered in boards, because `dct` doesn't resolve dbt macros.
+
+**Where the schema comes from:**
+1. **Your installed `dct` (default)** — YADT finds the Python environment behind `dct` (uv, pipx, or a plain virtualenv) and uses the newest released schema shipped with that version, so the editor matches the CLI that renders your boards. Set **dct executable path** if `dct` isn't on your PATH.
+2. **GitHub download (opt-in)** — with **Download the board schema from GitHub** enabled, YADT fetches the newest released schema from [dbt-labs/dbt-charts](https://github.com/dbt-labs/dbt-charts) when no local `dct` is found. Downloads are sha256-verified and cached, and fall back to the cache when offline.
+
+If neither source yields a schema, board files stay plain YAML and a project containing `dbt_charts.yml` shows a one-time notification.
+
+Rendering boards (`dct serve` / `dct render`) and `dct validate` are not part of the plugin; run them from the terminal.
 
 ---
 
