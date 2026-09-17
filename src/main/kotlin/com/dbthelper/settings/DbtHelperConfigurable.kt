@@ -24,6 +24,20 @@ class DbtHelperConfigurable(private val project: Project) : BoundConfigurable("Y
             }
         }
 
+        group("dbt Charts") {
+            row("dct executable path:") {
+                textField()
+                    .bindText(settings.state::dctExecutablePath)
+                    .columns(COLUMNS_MEDIUM)
+                    .comment("Path to the dbt Charts CLI, or just dct if it's in PATH. Its installed schema drives board YAML completion and validation")
+            }
+            row {
+                checkBox("Download the board schema from GitHub when dct isn't installed")
+                    .bindSelected(settings.state::downloadChartsSchema)
+                    .comment("Fetches the newest released schema from github.com/dbt-labs/dbt-charts and caches it")
+            }
+        }
+
         group("Project") {
             row("Project root override:") {
                 textField()

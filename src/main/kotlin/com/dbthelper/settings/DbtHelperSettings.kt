@@ -12,6 +12,8 @@ class DbtHelperSettings : PersistentStateComponent<DbtHelperSettings.State> {
 
     data class State(
         var dbtExecutablePath: String = "dbt",
+        var dctExecutablePath: String = "dct",
+        var downloadChartsSchema: Boolean = false,
         var dbtProjectRootOverride: String = "",
         var activeTarget: String = "",
         var upstreamDepth: Int = 1,
