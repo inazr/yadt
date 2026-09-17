@@ -1,5 +1,6 @@
 package com.dbthelper.codeintel
 
+import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.DbtUtils
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.model.ManifestIndex
@@ -27,7 +28,7 @@ class DbtGotoDeclarationHandler : GotoDeclarationHandler {
         val index = service.getIndex()
         if (index === ManifestIndex.EMPTY) return null
 
-        val dbtRoot = service.getLocator().findProjectRoot() ?: return null
+        val dbtRoot = DbtProjectLocator.getInstance(project).findProjectRoot() ?: return null
         val text = file.text
 
         for (ref in DbtJinjaUtils.findRefCalls(text)) {

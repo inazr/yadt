@@ -3,8 +3,6 @@ package com.dbthelper.core
 import com.dbthelper.core.model.*
 import com.dbthelper.settings.DbtHelperSettings
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -17,13 +15,11 @@ import kotlinx.coroutines.*
 class ManifestService(private val project: Project) : Disposable {
 
     private val logger = Logger.getInstance(ManifestService::class.java)
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
-    private val locator = DbtProjectLocator(project)
+    private val locator get() = DbtProjectLocator.getInstance(project)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile
-    var cachedIndex: ManifestIndex = ManifestIndex.EMPTY
-        private set
+    private var cachedIndex: ManifestIndex = ManifestIndex.EMPTY
 
     @Volatile
     var lastError: String? = null
@@ -34,8 +30,6 @@ class ManifestService(private val project: Project) : Disposable {
         private set
 
     fun getIndex(): ManifestIndex = cachedIndex
-
-    fun getLocator(): DbtProjectLocator = locator
 
     fun reparse() {
         scope.launch {
@@ -74,7 +68,7 @@ class ManifestService(private val project: Project) : Disposable {
                 lastError = "manifest.json not found"
                 return
             }
-            val root = manifestFile.inputStream.use { mapper.readTree(it) }
+            val root = manifestFile.inputStream.use { jsonMapper.readTree(it) }
 
             val nodes = parseNodes(root.get("nodes"))
             val sources = parseSources(root.get("sources"))
@@ -107,7 +101,7 @@ class ManifestService(private val project: Project) : Disposable {
 
                 // Map the yml that documents this node (its patch_path) -> node id, so
                 // opening a schema.yml can focus all the models/seeds/snapshots it covers.
-                if (node.resourceType in DOCUMENTED_NODE_TYPES) {
+                if (node.resourceType in BUILDABLE_RESOURCE_TYPES) {
                     node.patchPath?.let { pp ->
                         val rel = pp.substringAfter("://").toUnixPath()
                         if (rel.isNotEmpty()) {
@@ -340,9 +334,6 @@ class ManifestService(private val project: Project) : Disposable {
     }
 
     companion object {
-        // Resource types that are "documented" by a schema yml via patch_path.
-        private val DOCUMENTED_NODE_TYPES = setOf("model", "seed", "snapshot")
-
         fun getInstance(project: Project): ManifestService =
             project.service<ManifestService>()
 

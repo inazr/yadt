@@ -1,5 +1,9 @@
 package com.dbthelper.toolwindow
 
+import com.dbthelper.core.DbtProjectLocator
+import com.dbthelper.core.model.BUILDABLE_RESOURCE_TYPES
+import com.dbthelper.core.YadtNotifier
+import com.dbthelper.core.jsonMapper
 import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtRunStatusParser
@@ -12,16 +16,12 @@ import com.dbthelper.core.LineageGraphBuilder
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.SourcesFreshnessParser
 import com.dbthelper.core.ManifestUpdateListener
-import com.dbthelper.core.model.LineageGraph
 import com.dbthelper.core.model.ManifestIndex
 import com.dbthelper.listeners.CurrentModelListener
 import com.dbthelper.settings.DbtHelperSettings
 import com.dbthelper.settings.SettingsChangeListener
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -47,7 +47,6 @@ class LineageTab(
 ) : JPanel(BorderLayout()), Disposable {
 
     private val logger = Logger.getInstance(LineageTab::class.java)
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
     private val browser: JBCefBrowser = JBCefBrowser()
     private val jsQueryBridge: JBCefJSQuery = JBCefJSQuery.create(browser as JBCefBrowserBase)
 
@@ -159,7 +158,7 @@ class LineageTab(
     private fun setupJsBridge() {
         jsQueryBridge.addHandler { request ->
             try {
-                val json = mapper.readTree(request)
+                val json = jsonMapper.readTree(request)
                 val type = json.path("type").asText()
                 val payload = json.get("payload")
 
@@ -186,13 +185,13 @@ class LineageTab(
                     "contextMenuRequest" -> {
                         val payloadObj = payload ?: return@addHandler JBCefJSQuery.Response("ok")
                         @Suppress("UNCHECKED_CAST")
-                        val nodeIds = mapper.convertValue(payloadObj.get("nodeIds"), List::class.java)
+                        val nodeIds = jsonMapper.convertValue(payloadObj.get("nodeIds"), List::class.java)
                             ?.filterIsInstance<String>() ?: emptyList()
                         @Suppress("UNCHECKED_CAST")
-                        val names = mapper.convertValue(payloadObj.get("names"), List::class.java)
+                        val names = jsonMapper.convertValue(payloadObj.get("names"), List::class.java)
                             ?.filterIsInstance<String>() ?: emptyList()
                         @Suppress("UNCHECKED_CAST")
-                        val resourceTypes = mapper.convertValue(payloadObj.get("resourceTypes"), List::class.java)
+                        val resourceTypes = jsonMapper.convertValue(payloadObj.get("resourceTypes"), List::class.java)
                             ?.map { it as? String } ?: emptyList()
                         val clientX = payloadObj.get("clientX")?.asInt() ?: return@addHandler JBCefJSQuery.Response("ok")
                         val clientY = payloadObj.get("clientY")?.asInt() ?: return@addHandler JBCefJSQuery.Response("ok")
@@ -226,18 +225,18 @@ class LineageTab(
                             try {
                                 val image = LineageScreenshotter.capture(browser.component)
                                 if (image == null) {
-                                    notify("Lineage panel must be visible to copy a screenshot", NotificationType.WARNING)
+                                    YadtNotifier.notifyWithSystem(project, "Lineage panel must be visible to copy a screenshot", NotificationType.WARNING)
                                 } else {
                                     val compW = browser.component.size.width
                                     val cropped = LineageScreenshotter.cropHorizontally(
                                         image, compW, cropLeft ?: 0.0, cropRight ?: compW.toDouble()
                                     )
                                     LineageScreenshotter.copyToClipboard(cropped)
-                                    notify("Lineage copied to clipboard", NotificationType.INFORMATION)
+                                    YadtNotifier.notifyWithSystem(project, "Lineage copied to clipboard", NotificationType.INFORMATION)
                                 }
                             } catch (e: Exception) {
                                 logger.warn("Failed to capture lineage screenshot", e)
-                                notify("Failed to copy lineage screenshot: ${e.message}", NotificationType.ERROR)
+                                YadtNotifier.notifyWithSystem(project, "Failed to copy lineage screenshot: ${e.message}", NotificationType.ERROR)
                             } finally {
                                 if (!isDisposed) executeJs("restoreScreenshotChrome()")
                             }
@@ -442,7 +441,7 @@ class LineageTab(
             if (isDisposed) return@invokeLater
             val service = ManifestService.getInstance(project)
             val index = service.getIndex()
-            val locator = service.getLocator()
+            val locator = DbtProjectLocator.getInstance(project)
             val dbtRoot = locator.findProjectRoot() ?: return@invokeLater
 
             val sqlPath: String?
@@ -491,7 +490,7 @@ class LineageTab(
                 if (index === ManifestIndex.EMPTY) return@executeOnPooledThread
 
                 val settings = DbtHelperSettings.getInstance(project)
-                val locator = service.getLocator()
+                val locator = DbtProjectLocator.getInstance(project)
                 val catalogAvailable = locator.getCatalogFile() != null
                 val sourcesFile = locator.getTargetDir()?.let { target ->
                     java.nio.file.Paths.get(target.path, "sources.json")
@@ -517,14 +516,14 @@ class LineageTab(
                 )
 
                 lastBuildableNodeIds = graph.nodes
-                    .filter { it.resourceType in RunResultsReconciler.BUILDABLE_TYPES }
+                    .filter { it.resourceType in BUILDABLE_RESOURCE_TYPES }
                     .map { it.id }
                 lastVisibleNodeIds = graph.nodes
                     .filter { it.resourceType != "stub" && it.resourceType != "cluster" }
                     .map { it.id }
                     .toSet()
 
-                val graphJson = mapper.writeValueAsString(graph)
+                val graphJson = jsonMapper.writeValueAsString(graph)
                 val escaped = escapeJsJson(graphJson)
 
                 ApplicationManager.getApplication().invokeLater {
@@ -546,7 +545,7 @@ class LineageTab(
 
     private fun applyCurrentTheme() {
         if (!isPageReady || isDisposed) return
-        val payload = escapeJsJson(mapper.writeValueAsString(buildThemeVars()))
+        val payload = escapeJsJson(jsonMapper.writeValueAsString(buildThemeVars()))
         executeJs("applyThemeColors('$payload')")
     }
 
@@ -640,7 +639,7 @@ class LineageTab(
             if (isDisposed) return@invokeLater
             val service = ManifestService.getInstance(project)
             val index = service.getIndex()
-            val locator = service.getLocator()
+            val locator = DbtProjectLocator.getInstance(project)
             val dbtRoot = locator.findProjectRoot() ?: return@invokeLater
 
             val filePath = when (resourceType) {
@@ -663,7 +662,7 @@ class LineageTab(
                 val service = ManifestService.getInstance(project)
                 val index = service.getIndex()
                 val payload = DocsPayloadBuilder.build(nodeId, index) ?: return@executeOnPooledThread
-                val json = mapper.writeValueAsString(payload)
+                val json = jsonMapper.writeValueAsString(payload)
                 val escaped = escapeJsJson(json)
                 ApplicationManager.getApplication().invokeLater {
                     if (!isDisposed) executeJs("showDocs('$escaped')")
@@ -681,14 +680,14 @@ class LineageTab(
                 if (isDisposed) return@executeOnPooledThread
                 val service = ManifestService.getInstance(project)
                 val index = service.getIndex()
-                val sourcesFile = service.getLocator().getTargetDir()?.let { target ->
+                val sourcesFile = DbtProjectLocator.getInstance(project).getTargetDir()?.let { target ->
                     java.nio.file.Paths.get(target.path, "sources.json")
                 }
                 val available = sourcesFile?.let { java.nio.file.Files.exists(it) } ?: false
                 val freshness = sourcesFile?.let { SourcesFreshnessParser().parseFile(it) } ?: emptyMap()
                 val payload = FreshnessDetailBuilder.build(nodeId, index, freshness, available)
                     ?: return@executeOnPooledThread
-                val json = mapper.writeValueAsString(payload)
+                val json = jsonMapper.writeValueAsString(payload)
                 val escaped = escapeJsJson(json)
                 ApplicationManager.getApplication().invokeLater {
                     if (!isDisposed) executeJs("showFreshnessDetail('$escaped')")
@@ -706,7 +705,7 @@ class LineageTab(
     private fun buildRelationKeyIndex(index: ManifestIndex): Map<String, String> {
         val map = HashMap<String, String>()
         for ((id, node) in index.nodes) {
-            if (node.resourceType !in RunResultsReconciler.BUILDABLE_TYPES) continue
+            if (node.resourceType !in BUILDABLE_RESOURCE_TYPES) continue
             val schema = node.schema ?: continue
             val identifier = node.alias ?: node.name
             map["$schema.$identifier".lowercase()] = id
@@ -736,7 +735,7 @@ class LineageTab(
         runner.run(spec, object : DbtCommandRunner.OutputListener {
             override fun onLine(line: String) {}
             override fun onProcessStarted(process: Process) {}
-            override fun onFinished(result: DbtCommandRunner.RunResult) {
+            override fun onFinished(result: DbtCommandRunner.CommandResult) {
                 regenerateRunning = false
                 ApplicationManager.getApplication().invokeLater {
                     if (!isDisposed) executeJs("setRegenerateRunning(false)")
@@ -750,7 +749,7 @@ class LineageTab(
         val file = FileEditorManager.getInstance(project).selectedFiles.firstOrNull()
         val needs = if (file == null) false else {
             val service = ManifestService.getInstance(project)
-            val locator = service.getLocator()
+            val locator = DbtProjectLocator.getInstance(project)
             val isInProject = locator.isInsideDbtProject(file)
             val ext = file.extension?.lowercase()
             val isModelFile = ext == "sql" && isInProject
@@ -810,7 +809,7 @@ class LineageTab(
             val index = ManifestService.getInstance(project).getIndex()
             runRelationKeyIndex = buildRelationKeyIndex(index)
             val targetedIds = resolveSelectorPathIds(index, selector) ?: lastBuildableNodeIds
-            val idsJson = escapeJsJson(mapper.writeValueAsString(targetedIds))
+            val idsJson = escapeJsJson(jsonMapper.writeValueAsString(targetedIds))
             ApplicationManager.getApplication().invokeLater {
                 if (isDisposed) return@invokeLater
                 if (targetedIds.isNotEmpty()) executeJs("seedQueuedStatuses('$idsJson')")
@@ -837,13 +836,13 @@ class LineageTab(
             val focus = DbtSelectorParser.parse(token) ?: return null
             val startId = index.nodes.entries.firstOrNull {
                 it.value.name == focus.modelName &&
-                    it.value.resourceType in RunResultsReconciler.BUILDABLE_TYPES
+                    it.value.resourceType in BUILDABLE_RESOURCE_TYPES
             }?.key ?: continue
             result += startId
             collectReachable(index, startId, focus.upstreamDepth ?: 0, upstream = true, into = result)
             collectReachable(index, startId, focus.downstreamDepth ?: 0, upstream = false, into = result)
         }
-        return result.filter { index.nodes[it]?.resourceType in RunResultsReconciler.BUILDABLE_TYPES }
+        return result.filter { index.nodes[it]?.resourceType in BUILDABLE_RESOURCE_TYPES }
     }
 
     /** BFS from [startId] up to [depth] levels along parents (upstream) or children, collecting ids into [into]. */
@@ -874,7 +873,7 @@ class LineageTab(
         if (isDisposed) return
         val update = DbtRunStatusParser.parseLine(line) ?: return
         val uniqueId = runRelationKeyIndex?.get(update.relationKey) ?: return
-        val escaped = escapeJsJson(mapper.writeValueAsString(mapOf(uniqueId to update.status)))
+        val escaped = escapeJsJson(jsonMapper.writeValueAsString(mapOf(uniqueId to update.status)))
         ApplicationManager.getApplication().invokeLater {
             if (!isDisposed) executeJs("setNodeStatuses('$escaped')")
         }
@@ -886,10 +885,10 @@ class LineageTab(
         ApplicationManager.getApplication().executeOnPooledThread {
             if (isDisposed) return@executeOnPooledThread
             val service = ManifestService.getInstance(project)
-            val dbtRoot = service.getLocator().findProjectRoot() ?: return@executeOnPooledThread
+            val dbtRoot = DbtProjectLocator.getInstance(project).findProjectRoot() ?: return@executeOnPooledThread
             val statuses = RunResultsReconciler.reconcile(java.io.File(dbtRoot.path), service.getIndex())
             runRelationKeyIndex = null
-            val json = mapper.writeValueAsString(statuses)
+            val json = jsonMapper.writeValueAsString(statuses)
             val escaped = escapeJsJson(json)
             ApplicationManager.getApplication().invokeLater {
                 if (!isDisposed) executeJs("applyRunResults('$escaped')")
@@ -916,7 +915,7 @@ class LineageTab(
         // card and would inflate that count. Keep the full map for rollUpTestOutcomes,
         // which needs the test entries to attribute outcomes to their tested nodes.
         val nodeResults = results.filterKeys { !com.dbthelper.actions.isTestUniqueId(it) }
-        val payload = mapper.writeValueAsString(nodeResults.mapValues { (_, r) ->
+        val payload = jsonMapper.writeValueAsString(nodeResults.mapValues { (_, r) ->
             mapOf(
                 "status" to r.status.wire,
                 "message" to r.message,
@@ -925,7 +924,7 @@ class LineageTab(
                 "executionTime" to r.executionTime
             )
         })
-        val testPayload = mapper.writeValueAsString(rollUpTestOutcomes(results))
+        val testPayload = jsonMapper.writeValueAsString(rollUpTestOutcomes(results))
         ApplicationManager.getApplication().invokeLater {
             if (!isDisposed) {
                 browser.cefBrowser.executeJavaScript(
@@ -980,17 +979,6 @@ class LineageTab(
     private fun executeJs(code: String) {
         if (!isDisposed) {
             browser.cefBrowser.executeJavaScript(code, browser.cefBrowser.url, 0)
-        }
-    }
-
-    private fun notify(content: String, type: NotificationType) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("YADT")
-            .createNotification(content, type)
-            .notify(project)
-        if (DbtHelperSettings.getInstance(project).state.enableSystemNotifications) {
-            val title = if (type == NotificationType.ERROR) "dbt Error" else "YADT"
-            com.intellij.ui.SystemNotifications.getInstance().notify("yadt", title, content)
         }
     }
 

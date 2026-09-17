@@ -1,15 +1,14 @@
 package com.dbthelper.actions
 
+import com.dbthelper.core.YadtNotifier
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.model.ManifestIndex
-import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.project.Project
 
 class ToggleRefRelationAction : AnAction("Convert: ref ↔ Relation") {
 
@@ -31,7 +30,7 @@ class ToggleRefRelationAction : AnAction("Convert: ref ↔ Relation") {
         val service = ManifestService.getInstance(project)
         val index = service.getIndex()
         if (index === ManifestIndex.EMPTY) {
-            notify(project, "dbt manifest not loaded. Run 'dbt parse' or 'dbt compile' to generate target/manifest.json.")
+            YadtNotifier.notifyManifestNotLoaded(project)
             return
         }
 
@@ -44,7 +43,7 @@ class ToggleRefRelationAction : AnAction("Convert: ref ↔ Relation") {
         }
 
         if (replaced == text) {
-            notify(project, "Nothing to convert in the selection.")
+            YadtNotifier.notify(project, "Nothing to convert in the selection.", NotificationType.WARNING)
             return
         }
 
@@ -54,12 +53,5 @@ class ToggleRefRelationAction : AnAction("Convert: ref ↔ Relation") {
             editor.document.replaceString(start, end, replaced)
             editor.caretModel.moveToOffset(start + replaced.length)
         })
-    }
-
-    private fun notify(project: Project, message: String) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("YADT")
-            .createNotification(message, NotificationType.WARNING)
-            .notify(project)
     }
 }

@@ -3,8 +3,6 @@ package com.dbthelper.core
 import com.dbthelper.core.model.DbtColumn
 import com.dbthelper.core.model.ManifestIndex
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -13,14 +11,13 @@ import com.intellij.openapi.project.Project
 class CatalogParser(private val project: Project) {
 
     private val logger = Logger.getInstance(CatalogParser::class.java)
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
     fun mergeCatalog(index: ManifestIndex): ManifestIndex {
-        val locator = DbtProjectLocator(project)
+        val locator = DbtProjectLocator.getInstance(project)
         val catalogFile = locator.getCatalogFile() ?: return index
 
         return try {
-            val root = catalogFile.inputStream.use { mapper.readTree(it) }
+            val root = catalogFile.inputStream.use { jsonMapper.readTree(it) }
             val catalogNodes = root.get("nodes") ?: return index
             val catalogSources = root.get("sources")
 

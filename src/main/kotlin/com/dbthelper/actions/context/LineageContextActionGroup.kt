@@ -1,5 +1,6 @@
 package com.dbthelper.actions.context
 
+import com.dbthelper.core.model.BUILDABLE_RESOURCE_TYPES
 import com.dbthelper.toolwindow.DbtActionBar
 import com.dbthelper.toolwindow.LineageTab
 import com.intellij.openapi.actionSystem.ActionGroup
@@ -21,7 +22,7 @@ object LineageContextActionGroup {
         val multi = names.size > 1
         val multiSuffix = if (multi) " (${names.size} selected)" else ""
 
-        val allBuildable = resourceTypes.all { it == "model" || it == "snapshot" || it == "seed" || it == "test" }
+        val allBuildable = resourceTypes.all { it in BUILDABLE_RESOURCE_TYPES || it == "test" }
         val joined = names.joinToString(" ")
 
         if (allBuildable) {
@@ -45,7 +46,7 @@ object LineageContextActionGroup {
             group.add(Separator())
             val t = resourceTypes.first()
             when (t) {
-                "model", "snapshot", "seed" -> {
+                in BUILDABLE_RESOURCE_TYPES -> {
                     group.add(CopyRefAction(names[0]))
                     group.add(OpenSqlAction(lineageTab, nodeIds[0]))
                     group.add(OpenYamlAction(lineageTab, nodeIds[0]))

@@ -1,13 +1,12 @@
 package com.dbthelper.actions
 
+import com.dbthelper.toolwindow.DbtToolWindowFactory
 import com.dbthelper.core.DbtRunnerGateway
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
-
-private const val TOOL_WINDOW_ID = "YADT"
 
 /**
  * Activate the YADT tool window (without stealing keyboard focus from the editor)
@@ -16,7 +15,7 @@ private const val TOOL_WINDOW_ID = "YADT"
  * registers the handlers, and the activate callback runs afterwards.
  */
 private fun activateThen(project: Project, andThen: () -> Unit) {
-    val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID)
+    val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(DbtToolWindowFactory.ID)
     if (toolWindow == null) { andThen(); return }
     toolWindow.activate({ andThen() }, false)
 }

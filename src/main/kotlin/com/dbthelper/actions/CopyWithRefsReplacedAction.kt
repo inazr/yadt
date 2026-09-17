@@ -1,10 +1,8 @@
 package com.dbthelper.actions
 
-import com.dbthelper.codeintel.DbtJinjaUtils
+import com.dbthelper.core.YadtNotifier
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.model.ManifestIndex
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -35,13 +33,7 @@ class CopyWithRefsReplacedAction : AnAction("Copy for Target DB") {
 
         val index = ManifestService.getInstance(project).getIndex()
         if (index === ManifestIndex.EMPTY) {
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("YADT")
-                .createNotification(
-                    "dbt manifest not loaded. Run 'dbt parse' or 'dbt compile' to generate target/manifest.json.",
-                    NotificationType.WARNING
-                )
-                .notify(project)
+            YadtNotifier.notifyManifestNotLoaded(project)
             return
         }
 

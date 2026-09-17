@@ -36,7 +36,7 @@ class AutoParseOnSaveListener(private val project: Project) : BulkFileListener {
 
     override fun after(events: List<VFileEvent>) {
         if (!DbtHelperSettings.getInstance(project).state.autoParseOnSave) return
-        val root = DbtProjectLocator(project).findProjectRoot()?.path ?: return
+        val root = DbtProjectLocator.getInstance(project).findProjectRoot()?.path ?: return
         val relevant = events.any { event ->
             event is VFileContentChangeEvent && isRelevant(event.path, root)
         }
@@ -65,13 +65,13 @@ class AutoParseOnSaveListener(private val project: Project) : BulkFileListener {
 
             if (!parsing.compareAndSet(false, true)) { rearm = true; return@executeOnPooledThread } // single-flight
 
-            val root = DbtProjectLocator(project).findProjectRoot()?.path
+            val root = DbtProjectLocator.getInstance(project).findProjectRoot()?.path
             if (root == null) { parsing.set(false); return@executeOnPooledThread }
             val exe = runner.findDbtExecutable()
 
             runner.runCommand(listOf(exe, "parse"), File(root), object : DbtCommandRunner.OutputListener {
                 override fun onLine(line: String) {} // silent — do not touch the Runner log
-                override fun onFinished(result: DbtCommandRunner.RunResult) {
+                override fun onFinished(result: DbtCommandRunner.CommandResult) {
                     if (!result.success) {
                         logger.debug("auto dbt parse failed (exit ${result.exitCode}); keeping last good manifest")
                     }

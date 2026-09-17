@@ -1,9 +1,9 @@
 package com.dbthelper.charts
 
+import com.dbthelper.core.YadtNotifier
 import com.dbthelper.settings.DbtHelperConfigurable
 import com.dbthelper.settings.SettingsChangeListener
 import com.intellij.notification.NotificationAction
-import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.smartReadAction
 import com.intellij.openapi.options.ShowSettingsUtil
@@ -32,9 +32,7 @@ class DbtChartsSchemaStarter : ProjectActivity {
         }
 
     private fun notifyMissingSchema(project: Project) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("YADT")
-            .createNotification(
+        YadtNotifier.notification(
                 "dbt Charts editing support needs a schema. Install dct (uv tool install dbt-charts) " +
                     "or enable schema download in YADT settings.",
                 NotificationType.INFORMATION,

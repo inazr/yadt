@@ -1,14 +1,12 @@
 package com.dbthelper.actions
 
+import com.dbthelper.core.jsonMapper
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
 
 class RunResultsParser {
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
     fun parseFile(path: Path): Map<String, RunResult> {
         if (!Files.exists(path)) return emptyMap()
@@ -20,7 +18,7 @@ class RunResultsParser {
     }
 
     fun parseString(json: String): Map<String, RunResult> = try {
-        val root: JsonNode = mapper.readTree(json)
+        val root: JsonNode = jsonMapper.readTree(json)
         val results = root.path("results")
         if (!results.isArray) emptyMap()
         else results.mapNotNull { node -> toResult(node) }.associateBy { it.uniqueId }

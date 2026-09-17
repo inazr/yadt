@@ -1,5 +1,6 @@
 package com.dbthelper.listeners
 
+import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.ProfilesParser
 import com.intellij.openapi.project.Project
@@ -23,6 +24,11 @@ class ManifestFileWatcher(private val project: Project) : BulkFileListener {
             when (name) {
                 "manifest.json", "catalog.json" -> manifestDebounce.restart()
                 "profiles.yml" -> profilesDebounce.restart()
+                "dbt_project.yml" -> {
+                    DbtProjectLocator.getInstance(project).invalidateCache()
+                    profilesDebounce.restart()
+                    manifestDebounce.restart()
+                }
             }
         }
     }

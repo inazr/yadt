@@ -1,5 +1,6 @@
 package com.dbthelper.toolwindow.selector
 
+import com.dbthelper.core.model.BUILDABLE_RESOURCE_TYPES
 import com.dbthelper.core.model.ManifestIndex
 
 /** Pre-built, de-duplicated, sorted pools the autocomplete fuzzy-matches against. */
@@ -13,12 +14,9 @@ data class SelectorCandidates(
     companion object {
         val EMPTY = SelectorCandidates()
 
-        // Bare names resolve buildable nodes; tests/analyses would be noise in the popup.
-        private val NAMED_TYPES = setOf("model", "seed", "snapshot")
-
         fun from(index: ManifestIndex): SelectorCandidates {
             val models = index.nodes.values
-                .filter { it.resourceType in NAMED_TYPES }
+                .filter { it.resourceType in BUILDABLE_RESOURCE_TYPES } // tests/analyses would be noise in the popup
                 .map { it.name }
                 .distinct().sorted()
 
@@ -39,7 +37,7 @@ data class SelectorCandidates(
             // Same node-type scope as [models]: an fqn: selector targets buildable nodes,
             // so test/analysis fqns would only be noise in the popup.
             val fqns = index.nodes.values
-                .filter { it.resourceType in NAMED_TYPES && it.fqn.isNotEmpty() }
+                .filter { it.resourceType in BUILDABLE_RESOURCE_TYPES && it.fqn.isNotEmpty() }
                 .map { it.fqn.joinToString(".") }
                 .distinct().sorted()
 

@@ -1,5 +1,7 @@
 package com.dbthelper.core
 
+import com.intellij.openapi.components.service
+import com.intellij.openapi.components.Service
 import com.dbthelper.settings.DbtHelperSettings
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
@@ -9,6 +11,7 @@ import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import java.io.File
 
+@Service(Service.Level.PROJECT)
 class DbtProjectLocator(private val project: Project) {
 
     @Volatile
@@ -96,5 +99,9 @@ class DbtProjectLocator(private val project: Project) {
 
     fun invalidateCache() {
         cachedDbtRoots = emptyList()
+    }
+
+    companion object {
+        fun getInstance(project: Project): DbtProjectLocator = project.service()
     }
 }

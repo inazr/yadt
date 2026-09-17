@@ -1,5 +1,6 @@
 package com.dbthelper.listeners
 
+import com.dbthelper.toolwindow.DbtToolWindowFactory
 import com.dbthelper.core.ManifestService
 import com.dbthelper.settings.DbtHelperSettings
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -20,7 +21,7 @@ class DbtFileListener(private val project: Project) : FileEditorManagerListener 
         val manifestService = ManifestService.getInstance(project)
         val modelId = manifestService.findCurrentModelId(file)
         if (modelId != null) {
-            val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("YADT")
+            val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(DbtToolWindowFactory.ID)
             toolWindow?.show()
         }
 

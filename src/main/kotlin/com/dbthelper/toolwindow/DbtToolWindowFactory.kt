@@ -21,4 +21,9 @@ class DbtToolWindowFactory : ToolWindowFactory, DumbAware {
     }
 
     override fun shouldBeAvailable(project: Project): Boolean = true
+
+    companion object {
+        /** Must match the `<toolWindow id>` in plugin.xml. */
+        const val ID = "YADT"
+    }
 }

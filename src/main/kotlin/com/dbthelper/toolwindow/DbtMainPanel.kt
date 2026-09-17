@@ -1,5 +1,6 @@
 package com.dbthelper.toolwindow
 
+import com.dbthelper.core.YadtNotifier
 import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtVerb
@@ -12,9 +13,7 @@ import com.dbthelper.core.ManifestUpdateListener
 import com.dbthelper.core.ProfilesParser
 import com.dbthelper.core.model.ManifestIndex
 import com.dbthelper.listeners.CurrentModelListener
-import com.dbthelper.settings.DbtHelperSettings
 import com.dbthelper.settings.SettingsChangeListener
-import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -181,7 +180,7 @@ class DbtMainPanel(
                 }
             }
 
-            override fun onFinished(result: DbtCommandRunner.RunResult) {
+            override fun onFinished(result: DbtCommandRunner.CommandResult) {
                 ApplicationManager.getApplication().invokeLater {
                     if (generation != runGeneration) return@invokeLater
                     isRunning = false
@@ -207,10 +206,10 @@ class DbtMainPanel(
                             // "completed" toast so the two notifications don't pile up — or worse,
                             // contradict each other when no compiled file was found.
                             if (spec.verb != DbtVerb.COMPILE) {
-                                notify("$label completed", NotificationType.INFORMATION)
+                                YadtNotifier.notifyWithSystem(project, "$label completed", NotificationType.INFORMATION)
                             }
                         } else if (result.exitCode != -1) {
-                            notify("$label failed (exit code ${result.exitCode})", NotificationType.ERROR)
+                            YadtNotifier.notifyWithSystem(project, "$label failed (exit code ${result.exitCode})", NotificationType.ERROR)
                         }
                     }
                 }
@@ -237,10 +236,10 @@ class DbtMainPanel(
      * `-- <name>` header.
      */
     private fun copyCompiledToClipboard(spec: DbtCommandSpec) {
-        val root = DbtProjectLocator(project).findProjectRoot()
+        val root = DbtProjectLocator.getInstance(project).findProjectRoot()
         val projectName = ProfilesParser.getInstance(project).getProjectName()
         if (root == null || projectName == null) {
-            notify("Compile succeeded but the compiled SQL location could not be resolved", NotificationType.WARNING)
+            YadtNotifier.notifyWithSystem(project, "Compile succeeded but the compiled SQL location could not be resolved", NotificationType.WARNING)
             return
         }
         val compiledDir = File(root.path, "target/compiled/$projectName")
@@ -275,22 +274,11 @@ class DbtMainPanel(
         }
 
         if (sql == null) {
-            notify("Compile succeeded but no compiled SQL file was found", NotificationType.WARNING)
+            YadtNotifier.notifyWithSystem(project, "Compile succeeded but no compiled SQL file was found", NotificationType.WARNING)
             return
         }
         CopyPasteManager.getInstance().setContents(StringSelection(sql))
-        notify(message, NotificationType.INFORMATION)
-    }
-
-    private fun notify(content: String, type: NotificationType) {
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("YADT")
-            .createNotification(content, type)
-            .notify(project)
-        if (DbtHelperSettings.getInstance(project).state.enableSystemNotifications) {
-            val title = if (type == NotificationType.ERROR) "dbt Error" else "YADT"
-            com.intellij.ui.SystemNotifications.getInstance().notify("yadt", title, content)
-        }
+        YadtNotifier.notifyWithSystem(project, message, NotificationType.INFORMATION)
     }
 
     override fun dispose() {}

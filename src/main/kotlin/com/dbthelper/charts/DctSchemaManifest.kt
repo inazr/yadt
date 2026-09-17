@@ -1,6 +1,6 @@
 package com.dbthelper.charts
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.dbthelper.core.jsonMapper
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -12,10 +12,8 @@ data class SchemaEntry(val version: String, val file: String, val sha256: String
  * `RELEASED` (frozen file + sha256) or `DEV` (no file yet); only released ones are usable.
  */
 object DctSchemaManifest {
-    private val mapper = ObjectMapper()
-
     fun newestReleased(manifestJson: String): SchemaEntry? {
-        val root = runCatching { mapper.readTree(manifestJson) }.getOrNull() ?: return null
+        val root = runCatching { jsonMapper.readTree(manifestJson) }.getOrNull() ?: return null
         return root.path("schemas")
             .filter { it.path("status").asText() == "RELEASED" && it.path("file").isTextual && it.path("sha256").isTextual }
             .map { SchemaEntry(it.path("version").asText(), it.path("file").asText(), it.path("sha256").asText()) }

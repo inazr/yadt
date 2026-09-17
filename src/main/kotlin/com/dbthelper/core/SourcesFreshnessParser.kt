@@ -1,8 +1,6 @@
 package com.dbthelper.core
 
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -12,7 +10,6 @@ data class SourceFreshness(
 )
 
 class SourcesFreshnessParser {
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
     fun parseFile(path: Path): Map<String, SourceFreshness> {
         if (!Files.exists(path)) return emptyMap()
@@ -24,7 +21,7 @@ class SourcesFreshnessParser {
     }
 
     fun parseString(json: String): Map<String, SourceFreshness> = try {
-        val root: JsonNode = mapper.readTree(json)
+        val root: JsonNode = jsonMapper.readTree(json)
         val results = root.path("results")
         if (!results.isArray) emptyMap()
         else results.mapNotNull { node ->

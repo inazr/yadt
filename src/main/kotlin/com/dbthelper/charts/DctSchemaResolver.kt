@@ -1,7 +1,7 @@
 package com.dbthelper.charts
 
+import com.dbthelper.core.ExecutableLocator
 import com.dbthelper.settings.DbtHelperSettings
-import com.intellij.execution.configurations.PathEnvironmentVariableUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
@@ -82,18 +82,12 @@ class DctSchemaResolver(private val project: Project) : Disposable {
     }
 
     private fun findDct(): Path? {
-        val configured = DbtHelperSettings.getInstance(project).state.dctExecutablePath.trim()
-        if (configured.isNotEmpty() && configured != "dct") {
-            return Path.of(configured).takeIf { Files.isRegularFile(it) }
-        }
-        PathEnvironmentVariableUtil.findExecutableInPathOnAnyOS("dct")?.let { return it.toPath() }
-        return Path.of(System.getProperty("user.home"), ".local", "bin", "dct").takeIf { Files.isRegularFile(it) }
+        val configured = DbtHelperSettings.getInstance(project).state.dctExecutablePath
+        return ExecutableLocator.find("dct", configured)?.takeIf { Files.isRegularFile(it) }
     }
 
     private fun uvToolDir(): Path? {
-        val uv = PathEnvironmentVariableUtil.findExecutableInPathOnAnyOS("uv")?.toPath()
-            ?: Path.of(System.getProperty("user.home"), ".local", "bin", "uv").takeIf { Files.isRegularFile(it) }
-            ?: return null
+        val uv = ExecutableLocator.find("uv") ?: return null
         return try {
             val proc = ProcessBuilder(uv.toString(), "tool", "dir").redirectErrorStream(true).start()
             if (!proc.waitFor(5, TimeUnit.SECONDS)) {

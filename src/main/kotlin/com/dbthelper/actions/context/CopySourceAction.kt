@@ -9,7 +9,7 @@ import java.awt.datatransfer.StringSelection
 
 class CopySourceAction(private val project: Project, private val uniqueId: String) : AnAction("Copy source(...)") {
     override fun actionPerformed(e: AnActionEvent) {
-        val src = ManifestService.getInstance(project).cachedIndex.sources[uniqueId] ?: return
+        val src = ManifestService.getInstance(project).getIndex().sources[uniqueId] ?: return
         val text = "source('${src.sourceName}', '${src.name}')"
         CopyPasteManager.getInstance().setContents(StringSelection(text))
     }

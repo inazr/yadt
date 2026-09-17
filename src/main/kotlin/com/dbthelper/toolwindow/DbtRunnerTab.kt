@@ -1,9 +1,8 @@
 package com.dbthelper.toolwindow
 
+import com.dbthelper.core.jsonMapper
 import com.dbthelper.settings.DbtHelperSettings
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -33,7 +32,6 @@ class DbtRunnerTab(
     parentDisposable: Disposable
 ) : JPanel(BorderLayout()), Disposable {
 
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
     private val logPane = object : JTextPane() {
         // Track the viewport width so output soft-wraps (no horizontal scrollbar).
@@ -136,7 +134,7 @@ class DbtRunnerTab(
             val jsonStart = clean.indexOfFirst { it == '{' || it == '[' }
             if (jsonStart < 0) return null
             val jsonStr = clean.substring(jsonStart)
-            val rootNode = mapper.readTree(jsonStr)
+            val rootNode = jsonMapper.readTree(jsonStr)
 
             val rowsNode: JsonNode = when {
                 rootNode.isObject && rootNode.has("show") -> rootNode.get("show")

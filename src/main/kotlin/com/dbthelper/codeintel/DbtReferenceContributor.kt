@@ -1,5 +1,6 @@
 package com.dbthelper.codeintel
 
+import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.DbtUtils
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.model.ManifestIndex
@@ -101,7 +102,7 @@ private class DbtPsiReference(
     override fun resolve(): PsiElement? {
         val project = element.project
         val service = ManifestService.getInstance(project)
-        val dbtRoot = service.getLocator().findProjectRoot() ?: return null
+        val dbtRoot = DbtProjectLocator.getInstance(project).findProjectRoot() ?: return null
         val originalFilePath = lookup(service.getIndex()) ?: return null
         return DbtUtils.resolveFile(project, dbtRoot.path, originalFilePath)
     }

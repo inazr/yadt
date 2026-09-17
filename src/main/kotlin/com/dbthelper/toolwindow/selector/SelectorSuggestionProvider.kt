@@ -10,7 +10,7 @@ import com.intellij.openapi.project.Project
  * Holds the current [SelectorCandidates] snapshot, rebuilt whenever the manifest changes.
  *
  * Subscribes to [ManifestUpdateListener.TOPIC] (per CLAUDE.md, UI code listens to the topic
- * instead of polling `ManifestService.cachedIndex`); seeds once from the current index so
+ * instead of polling `ManifestService.getIndex()`); seeds once from the current index so
  * suggestions work before the next reparse. Recomputing pools only on manifest change keeps
  * per-keystroke matching cheap.
  */

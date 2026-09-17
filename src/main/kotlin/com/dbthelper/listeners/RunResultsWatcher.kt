@@ -42,7 +42,7 @@ class RunResultsWatcher(private val project: Project) {
     }
 
     private fun projectRoot(): String? {
-        val locator = DbtProjectLocator(project)
+        val locator = DbtProjectLocator.getInstance(project)
         return locator.findProjectRoot()?.path
     }
 

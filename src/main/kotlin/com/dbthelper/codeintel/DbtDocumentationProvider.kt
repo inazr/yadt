@@ -1,5 +1,6 @@
 package com.dbthelper.codeintel
 
+import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.model.*
 import com.dbthelper.core.toUnixPath
@@ -19,7 +20,7 @@ class DbtDocumentationProvider : AbstractDocumentationProvider() {
             val index = service.getIndex()
             if (index === ManifestIndex.EMPTY) return null
 
-            val relativePath = service.getLocator().getRelativePath(vFile) ?: return null
+            val relativePath = DbtProjectLocator.getInstance(project).getRelativePath(vFile) ?: return null
             val normalized = relativePath.toUnixPath()
 
             val nodeId = index.findByFilePath(normalized)

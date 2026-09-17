@@ -1,5 +1,7 @@
 package com.dbthelper.actions
 
+import java.nio.file.Path
+import com.dbthelper.core.ExecutableLocator
 import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.ManifestService
 import com.dbthelper.settings.DbtHelperSettings
@@ -13,53 +15,19 @@ class DbtCommandRunner(private val project: Project) {
 
     private val logger = Logger.getInstance(DbtCommandRunner::class.java)
 
-    data class RunResult(val exitCode: Int, val output: String, val success: Boolean)
+    data class CommandResult(val exitCode: Int, val output: String, val success: Boolean)
 
     interface OutputListener {
         fun onLine(line: String)
-        fun onFinished(result: RunResult)
+        fun onFinished(result: CommandResult)
         fun onProcessStarted(process: Process) {}
     }
 
     fun findDbtExecutable(): String {
-        val settings = DbtHelperSettings.getInstance(project)
-        if (settings.state.dbtExecutablePath.isNotBlank() && settings.state.dbtExecutablePath != "dbt") {
-            return settings.state.dbtExecutablePath
-        }
-
-        val locator = DbtProjectLocator(project)
-        val projectRoot = locator.findProjectRoot()?.path
-
-        // Auto-detection order
-        val candidates = mutableListOf<String>()
-
-        // Check project-local venvs first
-        if (projectRoot != null) {
-            candidates.add("$projectRoot/.venv/bin/dbt")
-            candidates.add("$projectRoot/venv/bin/dbt")
-            candidates.add("$projectRoot/.env/bin/dbt")
-        }
-
-        // Common global locations
-        val home = System.getProperty("user.home")
-        candidates.add("$home/.local/bin/dbt")
-        candidates.add("/usr/local/bin/dbt")
-        candidates.add("/opt/homebrew/bin/dbt")
-
-        for (candidate in candidates) {
-            if (File(candidate).canExecute()) return candidate
-        }
-
-        // Try `which dbt`
-        try {
-            val proc = ProcessBuilder("which", "dbt")
-                .redirectErrorStream(true)
-                .start()
-            val path = proc.inputStream.bufferedReader().readText().trim()
-            if (proc.waitFor() == 0 && path.isNotBlank()) return path
-        } catch (_: Exception) {}
-
-        return "dbt"
+        val root = DbtProjectLocator.getInstance(project).findProjectRoot()?.path
+        val projectVenvs = if (root == null) emptyList() else listOf(".venv", "venv", ".env").map { Path.of(root, it, "bin", "dbt") }
+        val configured = DbtHelperSettings.getInstance(project).state.dbtExecutablePath
+        return ExecutableLocator.find("dbt", configured, projectVenvs)?.toString() ?: "dbt"
     }
 
     /**
@@ -87,12 +55,12 @@ class DbtCommandRunner(private val project: Project) {
 
     fun run(spec: DbtCommandSpec, listener: OutputListener) {
         val dbt = findDbtExecutable()
-        val locator = DbtProjectLocator(project)
+        val locator = DbtProjectLocator.getInstance(project)
         val projectRoot = locator.findProjectRoot()?.path
 
         if (projectRoot == null) {
             listener.onLine("ERROR: No dbt project found")
-            listener.onFinished(RunResult(-1, "", false))
+            listener.onFinished(CommandResult(-1, "", false))
             return
         }
 
@@ -114,7 +82,7 @@ class DbtCommandRunner(private val project: Project) {
         command: List<String>,
         workingDir: File,
         listener: OutputListener,
-        onComplete: ((RunResult) -> Unit)? = null
+        onComplete: ((CommandResult) -> Unit)? = null
     ) {
         Thread {
             val output = StringBuilder()
@@ -137,10 +105,8 @@ class DbtCommandRunner(private val project: Project) {
                     .directory(workingDir)
                     .redirectErrorStream(true)
 
-                // Inherit PATH from system + set wide terminal for dbt show output
+                // The child inherits the IDE's environment; widen the terminal for dbt show output.
                 val env = processBuilder.environment()
-                System.getenv("PATH")?.let { env["PATH"] = it }
-                System.getenv("HOME")?.let { env["HOME"] = it }
                 env["COLUMNS"] = "500"
                 if (colorsEnabled) {
                     env.remove("NO_COLOR")
@@ -160,7 +126,7 @@ class DbtCommandRunner(private val project: Project) {
                 }
 
                 val exitCode = process.waitFor()
-                val result = RunResult(exitCode, output.toString(), exitCode == 0)
+                val result = CommandResult(exitCode, output.toString(), exitCode == 0)
 
                 if (exitCode == 0) {
                     listener.onLine("")
@@ -177,7 +143,7 @@ class DbtCommandRunner(private val project: Project) {
                 logger.warn("Failed to run command: ${command.joinToString(" ")}", e)
                 val errorMsg = e.message ?: "Unknown error"
                 listener.onLine("ERROR: $errorMsg")
-                val result = RunResult(-1, output.toString(), false)
+                val result = CommandResult(-1, output.toString(), false)
                 listener.onFinished(result)
                 onComplete?.invoke(result)
             }

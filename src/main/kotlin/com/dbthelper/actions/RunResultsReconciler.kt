@@ -1,8 +1,7 @@
 package com.dbthelper.actions
 
+import com.dbthelper.core.jsonMapper
 import com.dbthelper.core.model.ManifestIndex
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
 import java.io.File
 
 /**
@@ -21,7 +20,6 @@ import java.io.File
  */
 object RunResultsReconciler {
 
-    private val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
     private val rank = mapOf("skipped" to 0, "success" to 1, "warn" to 2, "error" to 3)
 
@@ -43,7 +41,7 @@ object RunResultsReconciler {
         if (!file.isFile) return emptyMap()
 
         val root = try {
-            file.inputStream().use { mapper.readTree(it) }
+            file.inputStream().use { jsonMapper.readTree(it) }
         } catch (_: Exception) {
             return emptyMap()
         }
@@ -68,6 +66,4 @@ object RunResultsReconciler {
         }
         return acc
     }
-
-    val BUILDABLE_TYPES = setOf("model", "seed", "snapshot")
 }
