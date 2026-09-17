@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Lineage: zooming no longer speeds up the longer the tool window is open. The wheel, zoom-button and keyboard zoom handlers were attached again on every graph render, so after N re-renders a single scroll tick or click zoomed N times; they are now attached once
+- Lineage: the hover tooltip shows the node's name again (its title line was always empty)
+
 ## [0.6.1] - 2026-09-17
 
 - Refreshed the plugin description: it now covers the docs sidebar (replacing the outdated "Docs viewer" panel), grouping/search/minimap in the lineage graph, potentially terminal columns, and the **YADT** editor submenu with **Convert: ref ↔ Relation**, and notes that code intelligence also works in dbt Charts boards. No functional changes since 0.6.0

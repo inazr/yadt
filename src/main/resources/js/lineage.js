@@ -798,6 +798,62 @@
         });
     }
 
+    // Registered once: #cy, the zoom buttons and document outlive every re-render
+    // (only the cytoscape instance is recreated), so wiring these per render would
+    // stack another listener each time and multiply every zoom step.
+    function initZoomControls() {
+        // Manual wheel/pinch zoom for JCEF trackpad compatibility
+        var cyContainer = document.getElementById('cy');
+
+        function applyZoom(factor, x, y) {
+            var zoom = cy.zoom() * factor;
+            zoom = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), zoom));
+            cy.zoom({ level: zoom, renderedPosition: { x: x, y: y } });
+        }
+
+        // Wheel event — handles scroll and ctrl+scroll (pinch on some systems)
+        cyContainer.addEventListener('wheel', function (e) {
+            if (!cy) return;
+            e.preventDefault();
+            var delta = e.deltaY;
+            var sensitivity = e.ctrlKey ? 0.01 : 0.001;
+            applyZoom(1 - delta * sensitivity, e.offsetX, e.offsetY);
+        }, { passive: false });
+
+        // Zoom control buttons — 5% step
+        document.getElementById('zoom-in').addEventListener('click', function () {
+            if (!cy) return;
+            applyZoom(1.02, cy.width() / 2, cy.height() / 2);
+        });
+        document.getElementById('zoom-out').addEventListener('click', function () {
+            if (!cy) return;
+            applyZoom(1 / 1.02, cy.width() / 2, cy.height() / 2);
+        });
+        document.getElementById('zoom-fit').addEventListener('click', function () {
+            if (!cy) return;
+            cy.fit(undefined, 30);
+        });
+
+        // Keyboard zoom: +/- and =/- keys (skip when typing in search)
+        document.addEventListener('keydown', function (e) {
+            if (!cy) return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            var cx = cy.width() / 2;
+            var cy2 = cy.height() / 2;
+            if (e.key === '+' || e.key === '=' || (e.key === '=' && e.metaKey)) {
+                e.preventDefault();
+                applyZoom(1.02, cx, cy2);
+            } else if (e.key === '-' || e.key === '_') {
+                e.preventDefault();
+                applyZoom(1 / 1.02, cx, cy2);
+            } else if (e.key === '0') {
+                e.preventDefault();
+                cy.fit(undefined, 30);
+            }
+        });
+    }
+    initZoomControls();
+
     function initCytoscape(elements, currentNodeId, edgeCurveStyle, layoutDirection) {
         currentLayoutDir = layoutDirection || 'LR';
         // Save viewport if re-rendering
@@ -978,56 +1034,6 @@
             repaintAllFailureBadges();
             cy.on('pan zoom position layoutstop', syncNodeCards);
             cy.on('pan zoom layoutstop', drawMinimap);
-
-            // Manual wheel/pinch zoom for JCEF trackpad compatibility
-            var cyContainer = document.getElementById('cy');
-
-            function applyZoom(factor, x, y) {
-                var zoom = cy.zoom() * factor;
-                zoom = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), zoom));
-                cy.zoom({ level: zoom, renderedPosition: { x: x, y: y } });
-            }
-
-            // Wheel event — handles scroll and ctrl+scroll (pinch on some systems)
-            cyContainer.addEventListener('wheel', function (e) {
-                if (!cy) return;
-                e.preventDefault();
-                var delta = e.deltaY;
-                var sensitivity = e.ctrlKey ? 0.01 : 0.001;
-                applyZoom(1 - delta * sensitivity, e.offsetX, e.offsetY);
-            }, { passive: false });
-
-            // Zoom control buttons — 5% step
-            document.getElementById('zoom-in').addEventListener('click', function () {
-                if (!cy) return;
-                applyZoom(1.02, cy.width() / 2, cy.height() / 2);
-            });
-            document.getElementById('zoom-out').addEventListener('click', function () {
-                if (!cy) return;
-                applyZoom(1 / 1.02, cy.width() / 2, cy.height() / 2);
-            });
-            document.getElementById('zoom-fit').addEventListener('click', function () {
-                if (!cy) return;
-                cy.fit(undefined, 30);
-            });
-
-            // Keyboard zoom: +/- and =/- keys (skip when typing in search)
-            document.addEventListener('keydown', function (e) {
-                if (!cy) return;
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-                var cx = cy.width() / 2;
-                var cy2 = cy.height() / 2;
-                if (e.key === '+' || e.key === '=' || (e.key === '=' && e.metaKey)) {
-                    e.preventDefault();
-                    applyZoom(1.02, cx, cy2);
-                } else if (e.key === '-' || e.key === '_') {
-                    e.preventDefault();
-                    applyZoom(1 / 1.02, cx, cy2);
-                } else if (e.key === '0') {
-                    e.preventDefault();
-                    cy.fit(undefined, 30);
-                }
-            });
         }
 
         var elkOpts = Object.assign({}, ELK_LAYOUT_OPTIONS, {
@@ -1062,7 +1068,7 @@
 
 
     function showTooltip(pos, data) {
-        var html = '<div class="tt-name">' + escapeHtml(data.label) + '</div>';
+        var html = '<div class="tt-name">' + escapeHtml(data.name) + '</div>';
         html += '<div class="tt-detail">';
         html += 'Type: ' + data.resourceType;
         if (data.schema) html += '<br>Schema: ' + escapeHtml(data.schema);
