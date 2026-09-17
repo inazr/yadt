@@ -1,0 +1,15 @@
+<!--
+  Optional sub-descriptor for the JSON plugin (com.intellij.modules.json), which defines the
+  JavaScript.JsonSchema.ProviderFactory extension point. Applies the dbt Charts board schema resolved
+  by DctSchemaResolver. Kept separate from yadt-charts-yaml.xml: in 2025.1.3 the YAML plugin core only
+  depends on the intellij.json.split module, so neither plugin guarantees the other.
+-->
+<idea-plugin>
+    <extensions defaultExtensionNs="JavaScript">
+        <JsonSchema.ProviderFactory implementation="com.dbthelper.charts.DbtChartsSchemaProviderFactory"/>
+    </extensions>
+    <projectListeners>
+        <listener class="com.dbthelper.charts.DbtChartsSchemaResetter"
+                  topic="com.dbthelper.charts.DctSchemaListener"/>
+    </projectListeners>
+</idea-plugin>

@@ -30,6 +30,7 @@ dependencies {
         val type = providers.gradleProperty("platformType").get()
         val version = providers.gradleProperty("platformVersion").get()
         create(type, version)
+        bundledPlugins("com.intellij.modules.json", "org.jetbrains.plugins.yaml")
     }
 
     testImplementation(libs.junit.api)

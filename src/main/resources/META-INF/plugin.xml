@@ -64,6 +64,9 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
          A resolved optional <depends> still contributes the target plugin's content modules to our
          classloader parents, which is exactly what makes com.intellij.ui.jcef resolvable on 262+. -->
     <depends optional="true" config-file="yadt-jcef.xml">com.intellij.modules.jcef</depends>
+    <!-- dbt Charts board schema (JSON Schema engine). Optional: YADT must load in IDEs without the
+         JSON plugin; board files then simply get no schema. See yadt-charts-schema.xml. -->
+    <depends optional="true" config-file="yadt-charts-schema.xml">com.intellij.modules.json</depends>
 
     <resource-bundle>messages.DbtHelperBundle</resource-bundle>
 
