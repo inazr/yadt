@@ -4,8 +4,6 @@ data class LineageGraph(
     val currentNodeId: String,
     val nodes: List<LineageNode>,
     val edges: List<LineageEdge>,
-    val hiddenUpstreamCount: Int = 0,
-    val hiddenDownstreamCount: Int = 0,
     val edgeCurveStyle: String = "bezier",
     val layoutDirection: String = "LR",
     val nodeColorMode: String = "resource",

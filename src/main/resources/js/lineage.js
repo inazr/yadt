@@ -80,36 +80,6 @@
         });
     }
 
-    var layoutCache = (function () {
-        var MAX = 20;
-        var map = new Map();
-        function hash(key) {
-            var h = 0;
-            for (var i = 0; i < key.length; i++) { h = (h * 31 + key.charCodeAt(i)) | 0; }
-            return String(h);
-        }
-        return {
-            keyFor: function (currentNodeId, nodes, edges, clusterMode, expandedIds) {
-                var nIds = nodes.map(function (n) { return n.data.id + ':' + n.data.w + 'x' + n.data.h; }).sort().join('|');
-                var eIds = edges.map(function (e) { return e.data.id; }).sort().join('|');
-                var ex = (expandedIds || []).slice().sort().join(',');
-                return hash(currentNodeId + '##' + (clusterMode || '') + '##' + ex + '##' + nIds + '##' + eIds);
-            },
-            get: function (k) {
-                if (!map.has(k)) return null;
-                var v = map.get(k);
-                map.delete(k); map.set(k, v); // LRU bump
-                return v;
-            },
-            put: function (k, positions) {
-                if (map.has(k)) map.delete(k);
-                else if (map.size >= MAX) { map.delete(map.keys().next().value); }
-                map.set(k, positions);
-            },
-            clear: function () { map.clear(); }
-        };
-    })();
-
     // --- ALPHA-SORT BEGIN (the layout test extracts this block verbatim - keep the markers)
     // ELK's crossing minimization has many equally good optima and keeps whichever one its
     // heuristic reaches first, which is why the order inside a column looks arbitrary. This
@@ -379,7 +349,6 @@
     var nodeSearchHints = {};
     let currentColorMode = 'resource';
     let nodeStatus = {}; // uniqueId -> status string (see STATUS_BAR_COLORS keys)
-    var nodeFailures = {}; // uniqueId -> failure count (integer)
     var nodeFailureMessages = {}; // uniqueId -> failure message string
     // uniqueId -> { status:'error'|'warn', failed:int, warned:int } from the last run's
     // tests, rolled onto the nodes they validate. Drives the "!" triangle overlay.
@@ -539,12 +508,11 @@
         if (pendingClickTimer) clearTimeout(pendingClickTimer);
         lastClickedId = d.data.id;
         var nodeId = d.data.id;
-        var resourceType = d.data.resourceType;
         pendingClickTimer = setTimeout(function () {
             pendingClickTimer = null;
             lastClickedId = null;
             dimToNeighborhood(nodeId);
-            sendToKotlin('previewNode', { nodeId: nodeId, resourceType: resourceType });
+            sendToKotlin('previewNode', { nodeId: nodeId });
         }, 260);
     });
     const tooltipEl = document.getElementById('tooltip');
@@ -679,7 +647,6 @@
 
                 var badge = document.createElement('div');
                 badge.className = 'card-failure-badge';
-                badge.textContent = '';
                 card.appendChild(badge);
                 card.classList.add('no-failure-badge');
 
@@ -840,7 +807,7 @@
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             var cx = cy.width() / 2;
             var cy2 = cy.height() / 2;
-            if (e.key === '+' || e.key === '=' || (e.key === '=' && e.metaKey)) {
+            if (e.key === '+' || e.key === '=') {
                 e.preventDefault();
                 applyZoom(1.02, cx, cy2);
             } else if (e.key === '-' || e.key === '_') {
@@ -1039,31 +1006,12 @@
         var elkOpts = Object.assign({}, ELK_LAYOUT_OPTIONS, {
             'elk.direction': elkDirectionFor(layoutDirection)
         });
-        var cacheKey = layoutCache.keyFor(
-            currentNodeId,
-            elements.filter(function (e) { return e.data && !e.data.source; }),
-            elements.filter(function (e) { return e.data && e.data.source; }),
-            null,
-            []
-        );
-        var cached = layoutCache.get(cacheKey);
-        if (cached) {
-            cy.nodes().forEach(function (n) {
-                var p = cached[n.id()];
-                if (p) n.position({ x: p.x, y: p.y });
+        cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(layoutDirection) })
+            .run()
+            .promiseOn('layoutstop').then(function () {
+                alphabetizeInterchangeableGroups(cy, layoutDirection, CROSSING_TOLERANCE, CROSSING_SLACK);
+                finalizeLayout();
             });
-            finalizeLayout();
-        } else {
-            cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(layoutDirection) })
-                .run()
-                .promiseOn('layoutstop').then(function () {
-                    alphabetizeInterchangeableGroups(cy, layoutDirection, CROSSING_TOLERANCE, CROSSING_SLACK);
-                    var pos = {};
-                    cy.nodes().forEach(function (n) { var p = n.position(); pos[n.id()] = { x: p.x, y: p.y }; });
-                    layoutCache.put(cacheKey, pos);
-                    finalizeLayout();
-                });
-        }
     }
 
 
@@ -1166,12 +1114,6 @@
         } catch (e) { console.error('applyRunResults error:', e); }
     };
 
-    // Clear all statuses (called at GO before seeding queued).
-    window.clearNodeStatuses = function () {
-        nodeStatus = {};
-        if (currentColorMode === 'status') repaintAllStatusCards();
-    };
-
     window.seedQueuedStatuses = function (idsJson) {
         try {
             var ids = typeof idsJson === 'string' ? JSON.parse(idsJson) : idsJson;
@@ -1189,21 +1131,17 @@
         try {
             var map = typeof payloadOrJson === 'string' ? JSON.parse(payloadOrJson) : payloadOrJson;
             nodeStatus = {};
-            nodeFailures = {};
             nodeFailureMessages = {};
             Object.keys(map).forEach(function (id) {
                 nodeStatus[id] = map[id].status;
-                if (map[id].failures && map[id].failures > 0) {
-                    nodeFailures[id] = map[id].failures;
-                    if (map[id].message) {
-                        nodeFailureMessages[id] = map[id].message;
-                    }
+                if (map[id].failures > 0 && map[id].message) {
+                    nodeFailureMessages[id] = map[id].message;
                 }
             });
             // Status colors are only painted in status mode; the failure badges and
             // "last run" hint are independent overlays and always update.
             if (currentColorMode === 'status') repaintAllStatusCards();
-            if (typeof repaintAllFailureBadges === 'function') repaintAllFailureBadges();
+            repaintAllFailureBadges();
             renderRunResultsHint(map);
         } catch (e) { console.error('setRunResults error:', e); }
     };
@@ -1235,7 +1173,6 @@
     window.renderGraph = function (jsonStr) {
         loadExpandedFromStorage();
         loadMinimapPref();
-        layoutCache.clear();
         try {
             const graph = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
             window.__catalogAvailable = !!graph.catalogAvailable;
@@ -1433,7 +1370,6 @@
     var sidebarEl = document.getElementById('docs-sidebar');
     var sidebarToggleBtn = document.getElementById('toggle-sidebar');
     var sidebarCloseBtn = document.getElementById('docs-close');
-    var lastDocsPayload = null;
 
     function setSidebarOpen(open) {
         if (!sidebarEl) return;
@@ -1752,7 +1688,6 @@
     window.showDocs = function (jsonStr) {
         try {
             var p = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-            lastDocsPayload = p;
             if (sidebarEl) sidebarEl.classList.remove('freshness-mode');
             renderDocsHeader(p);
             renderDocsDescription(p);
@@ -2063,7 +1998,7 @@
         ctx.lineWidth = 1;
         ctx.strokeRect(tx(vpModelX), ty(vpModelY), vpModelW * scale, vpModelH * scale);
 
-        minimapTransform = { tx: tx, ty: ty, scale: scale, minX: minX, minY: minY, pad: pad };
+        minimapTransform = { scale: scale, minX: minX, minY: minY, pad: pad };
     }
 
     if (minimapCanvas) {

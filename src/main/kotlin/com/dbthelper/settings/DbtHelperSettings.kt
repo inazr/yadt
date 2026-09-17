@@ -22,7 +22,6 @@ class DbtHelperSettings : PersistentStateComponent<DbtHelperSettings.State> {
         var showExposures: Boolean = true,
         var edgeCurveStyle: String = "round-taxi",
         var layoutDirection: String = "LR",
-        var showCompiledCode: Boolean = false,
         var previewRowLimit: Int = 10,
         var enableSystemNotifications: Boolean = true,
         var enableColoredOutput: Boolean = false,

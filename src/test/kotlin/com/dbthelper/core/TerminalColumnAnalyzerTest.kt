@@ -47,7 +47,7 @@ class TerminalColumnAnalyzerTest {
     fun `exposure dependency consumes all columns`() {
         val a = model("model.proj.a", "a", columns = listOf("id", "secret"))
         val exposure = DbtExposure(
-            uniqueId = "exposure.proj.dash", name = "dash", type = "dashboard",
+            uniqueId = "exposure.proj.dash", name = "dash",
             packageName = "proj", originalFilePath = "models/exposures.yml",
             dependsOnNodes = listOf("model.proj.a"),
         )

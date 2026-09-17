@@ -176,8 +176,6 @@ class LineageGraphBuilder(
                 currentNodeId = currentNodeId,
                 nodes = lineageNodes,
                 edges = validEdges,
-                hiddenUpstreamCount = upstreamResult.hiddenCount,
-                hiddenDownstreamCount = downstreamResult.hiddenCount,
                 catalogAvailable = catalogAvailable
             )
         }
@@ -207,8 +205,6 @@ class LineageGraphBuilder(
             currentNodeId = currentNodeId,
             nodes = lineageNodes + newStubNodes,
             edges = keptEdges + newStubEdges,
-            hiddenUpstreamCount = upstreamResult.hiddenCount,
-            hiddenDownstreamCount = downstreamResult.hiddenCount,
             catalogAvailable = catalogAvailable
         )
     }
@@ -292,7 +288,7 @@ class LineageGraphBuilder(
         )
     }
 
-    data class BfsResult(val hiddenCount: Int, val boundaryHiddenCounts: Map<String, Int>)
+    data class BfsResult(val boundaryHiddenCounts: Map<String, Int>)
 
     private fun bfs(
         startId: String,
@@ -303,7 +299,6 @@ class LineageGraphBuilder(
     ): BfsResult {
         val queue = LinkedList<Pair<String, Int>>() // (nodeId, currentDepth)
         val visited = mutableSetOf(startId)
-        var hiddenCount = 0
         val boundaryHiddenCounts = mutableMapOf<String, Int>() // boundaryNodeId -> count of hidden beyond it
 
         // Seed with immediate neighbors
@@ -319,10 +314,7 @@ class LineageGraphBuilder(
             if (nodeId in visited) continue
             visited.add(nodeId)
 
-            if (depth > maxDepth) {
-                hiddenCount++
-                continue
-            }
+            if (depth > maxDepth) continue
 
             val signedDepth = if (direction == Direction.UPSTREAM) -depth else depth
             // Keep the depth closest to current node
@@ -347,7 +339,7 @@ class LineageGraphBuilder(
             }
         }
 
-        return BfsResult(hiddenCount, boundaryHiddenCounts)
+        return BfsResult(boundaryHiddenCounts)
     }
 
     private fun getNeighbors(nodeId: String, direction: Direction): List<String> {

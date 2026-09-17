@@ -62,24 +62,6 @@ class DbtCommandRunner(private val project: Project) {
         return "dbt"
     }
 
-    fun getVersion(): String? {
-        return try {
-            val dbt = findDbtExecutable()
-            val process = ProcessBuilder(dbt, "--version")
-                .redirectErrorStream(true)
-                .start()
-            val output = process.inputStream.bufferedReader().readText().trim()
-            if (process.waitFor() == 0) {
-                // Parse "Core:\n  - installed: 1.10.0-b2" or "dbt version: 1.x.x"
-                val match = Regex("installed:\\s*([\\d.]+\\S*)").find(output)
-                    ?: Regex("dbt version:\\s*([\\d.]+\\S*)").find(output)
-                match?.groupValues?.get(1) ?: output.lines().firstOrNull()
-            } else null
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     /**
      * Classify the configured dbt by inspecting its --version banner.
      * dbt Cloud CLI prints "dbt Cloud CLI"; Fusion mentions "fusion"; dbt Core

@@ -104,7 +104,7 @@
         #search-box input {
             width: 180px;
             height: 28px;
-            padding: 0 8px;
+            padding: 0 24px 0 8px;
             border: 1px solid var(--btn-border);
             border-radius: 4px;
             background: var(--btn-bg);
@@ -113,7 +113,6 @@
             font-family: inherit;
             outline: none;
         }
-        #search-box input { padding-right: 24px; }
         #search-box input::placeholder { color: var(--tooltip-detail); }
         #search-box input:focus { border-color: #2196F3; }
         #search-clear {
@@ -233,14 +232,6 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .card-node .card-schema {
-            font-size: 11px;
-            font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
-            color: var(--card-schema);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
         .card-node.selected {
             border-color: var(--card-bar-color, var(--card-selected-border));
             box-shadow: 0 0 0 1px var(--card-bar-color, var(--card-selected-border)) inset;
@@ -256,8 +247,6 @@
             font-size: 12px;
             font-weight: 500;
         }
-        .card-node.stub .card-icon { display: none; }
-        .card-node.stub .card-bar { display: none; }
         .card-node.stub .card-name { color: var(--stub-text); font-weight: 500; }
         .card-node.running .card-bar {
             animation: card-running-pulse 1.2s ease-in-out infinite;
@@ -414,9 +403,7 @@
             contain: strict;
             transform: translateZ(0);
         }
-        .docs-content .docs-section { contain: content; }
-        .docs-content .col-row { contain: layout style; }
-        .docs-content .docs-section { display: none; padding: 8px 0; }
+        .docs-content .docs-section { display: none; padding: 8px 0; contain: content; }
         .docs-content .docs-section.active { display: block; }
         .docs-content .col-header {
             display: flex;
@@ -436,8 +423,8 @@
             gap: 10px;
             padding: 10px 16px;
             border-bottom: 1px solid var(--card-border);
+            contain: layout style;
         }
-        .docs-content .col-row.selected { background: var(--card-selected-bg); }
         .docs-content .col-main { flex: 1 1 auto; min-width: 0; }
         .docs-content .col-name {
             font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
@@ -698,7 +685,7 @@
 <body>
     <div id="cy"></div>
     <div id="node-overlay"></div>
-    <div id="loading" style="color: var(--loading-color)">Waiting for data...</div>
+    <div id="loading">Waiting for data...</div>
     <div id="tooltip" class="tooltip"></div>
     <div id="search-box">
         <input id="search-input" type="text" placeholder="Search nodes..." />

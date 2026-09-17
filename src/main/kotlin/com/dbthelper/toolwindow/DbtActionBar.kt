@@ -166,8 +166,6 @@ class DbtActionBar(
 
     fun currentSelector(): String = selectorField.text.trim()
 
-    fun isRunning(): Boolean = running
-
     fun currentTarget(): String = (targetCombo.selectedItem as? String).orEmpty()
 
     /**
@@ -342,7 +340,7 @@ class DbtActionBar(
         if (availableFlags.isEmpty()) return
         val list = CheckBoxList<DbtFlagDiscovery.FlagOption>()
         availableFlags.forEach { opt ->
-            list.addItem(opt, opt.label, selectedFlags.contains(opt.token))
+            list.addItem(opt, opt.token, selectedFlags.contains(opt.token))
         }
         list.setCheckBoxListListener { index, value ->
             val opt = list.getItemAt(index) ?: return@setCheckBoxListListener

@@ -12,7 +12,6 @@ data class DbtNode(
     val description: String = "",
     val columns: Map<String, DbtColumn> = emptyMap(),
     val dependsOnNodes: List<String> = emptyList(),
-    val dependsOnMacros: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
     val rawCode: String? = null,
     val compiledCode: String? = null,

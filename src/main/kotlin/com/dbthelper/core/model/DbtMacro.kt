@@ -6,8 +6,7 @@ data class DbtMacro(
     val packageName: String,
     val originalFilePath: String,
     val description: String = "",
-    val arguments: List<MacroArgument> = emptyList(),
-    val dependsOnMacros: List<String> = emptyList()
+    val arguments: List<MacroArgument> = emptyList()
 )
 
 data class MacroArgument(

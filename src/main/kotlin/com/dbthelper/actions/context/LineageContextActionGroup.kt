@@ -47,15 +47,15 @@ object LineageContextActionGroup {
             when (t) {
                 "model", "snapshot", "seed" -> {
                     group.add(CopyRefAction(names[0]))
-                    group.add(OpenSqlAction(project, lineageTab, nodeIds[0]))
-                    group.add(OpenYamlAction(project, lineageTab, nodeIds[0]))
+                    group.add(OpenSqlAction(lineageTab, nodeIds[0]))
+                    group.add(OpenYamlAction(lineageTab, nodeIds[0]))
                 }
                 "source" -> {
                     group.add(CopySourceAction(project, nodeIds[0]))
-                    group.add(OpenYamlAction(project, lineageTab, nodeIds[0]))
+                    group.add(OpenYamlAction(lineageTab, nodeIds[0]))
                 }
                 "exposure" -> {
-                    group.add(OpenYamlAction(project, lineageTab, nodeIds[0]))
+                    group.add(OpenYamlAction(lineageTab, nodeIds[0]))
                 }
             }
         }

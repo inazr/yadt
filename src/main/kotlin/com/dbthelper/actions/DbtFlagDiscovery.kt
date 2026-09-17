@@ -18,7 +18,7 @@ class DbtFlagDiscovery(project: Project) {
     private val runner = DbtCommandRunner(project)
 
     /** token = what we emit; helpName = substring searched in --help output. */
-    data class FlagOption(val token: String, val helpName: String, val label: String, val tooltip: String)
+    data class FlagOption(val token: String, val helpName: String)
 
     // exe::subcommand -> available options
     private val cache = ConcurrentHashMap<String, List<FlagOption>>()
@@ -86,15 +86,15 @@ class DbtFlagDiscovery(project: Project) {
 
     companion object {
         val ALLOWLIST = listOf(
-            FlagOption("--full-refresh", "full-refresh", "--full-refresh", "Rebuild incremental models from scratch"),
-            FlagOption("--fail-fast", "fail-fast", "--fail-fast", "Stop on the first failure"),
-            FlagOption("--empty", "empty", "--empty", "Schema-only dry run (zero-row refs/sources)"),
-            FlagOption("--warn-error", "warn-error", "--warn-error", "Treat warnings as errors"),
-            FlagOption("--store-failures", "store-failures", "--store-failures", "Store test failures in the warehouse"),
-            FlagOption("--no-partial-parse", "partial-parse", "--no-partial-parse", "Disable partial parsing"),
-            FlagOption("--defer", "defer", "--defer", "Defer unselected models to a previous state"),
-            FlagOption("--favor-state", "favor-state", "--favor-state", "Prefer deferred state over local"),
-            FlagOption("--debug", "debug", "--debug", "Verbose debug logging"),
+            FlagOption("--full-refresh", "full-refresh"),
+            FlagOption("--fail-fast", "fail-fast"),
+            FlagOption("--empty", "empty"),
+            FlagOption("--warn-error", "warn-error"),
+            FlagOption("--store-failures", "store-failures"),
+            FlagOption("--no-partial-parse", "partial-parse"),
+            FlagOption("--defer", "defer"),
+            FlagOption("--favor-state", "favor-state"),
+            FlagOption("--debug", "debug"),
         )
 
         private val SUBCOMMAND = mapOf(

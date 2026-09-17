@@ -1,7 +1,6 @@
 package com.dbthelper.core
 
 import com.dbthelper.core.model.ProfilesConfig
-import com.dbthelper.core.model.TargetConfig
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
@@ -36,23 +35,11 @@ class ProfilesParser(private val project: Project) {
             val defaultTarget = profileData["target"] as? String ?: "dev"
 
             @Suppress("UNCHECKED_CAST")
-            val outputs = profileData["outputs"] as? Map<String, Map<String, Any>> ?: emptyMap()
-            val targets = outputs.map { (name, config) ->
-                name to TargetConfig(
-                    name = name,
-                    type = config["type"] as? String ?: "unknown",
-                    database = config["database"] as? String ?: config["dbname"] as? String,
-                    schema = config["schema"] as? String,
-                    host = config["host"] as? String,
-                    port = (config["port"] as? Number)?.toInt(),
-                    threads = (config["threads"] as? Number)?.toInt()
-                )
-            }.toMap()
+            val outputs = profileData["outputs"] as? Map<String, Any> ?: emptyMap()
 
             ProfilesConfig(
-                profileName = profileName,
                 defaultTarget = defaultTarget,
-                targets = targets
+                targetNames = outputs.keys.toList()
             ).also { cachedConfig = it }
         } catch (e: Exception) {
             logger.warn("Failed to parse profiles.yml", e)
@@ -90,7 +77,7 @@ class ProfilesParser(private val project: Project) {
         }
     }
 
-    fun getTargetNames(): List<String> = parse()?.targets?.keys?.toList() ?: emptyList()
+    fun getTargetNames(): List<String> = parse()?.targetNames ?: emptyList()
 
     fun getDefaultTarget(): String? = parse()?.defaultTarget
 

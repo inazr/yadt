@@ -57,10 +57,6 @@ class DbtProjectLocator(private val project: Project) {
         return root.findChild("target")
     }
 
-    fun getManifestFile(file: VirtualFile? = null): VirtualFile? {
-        return getTargetDir(file)?.findChild("manifest.json")
-    }
-
     fun getCatalogFile(file: VirtualFile? = null): VirtualFile? {
         return getTargetDir(file)?.findChild("catalog.json")
     }
@@ -96,10 +92,6 @@ class DbtProjectLocator(private val project: Project) {
         val filePath = file.path
         if (!filePath.startsWith(rootPath)) return null
         return filePath.removePrefix(rootPath).removePrefix("/")
-    }
-
-    fun hasDbtProjects(): Boolean {
-        return findAllDbtRoots().isNotEmpty()
     }
 
     fun invalidateCache() {

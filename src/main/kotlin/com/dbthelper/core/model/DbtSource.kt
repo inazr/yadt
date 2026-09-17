@@ -13,11 +13,9 @@ data class DbtSource(
     val columns: Map<String, DbtColumn> = emptyMap(),
     val tags: List<String> = emptyList(),
     val loader: String? = null,
-    val sourceDescription: String? = null,
     val freshnessWarnAfter: String? = null,
     val freshnessErrorAfter: String? = null,
-    val loadedAtField: String? = null,
-    val externalRelationName: String? = null
+    val loadedAtField: String? = null
 ) {
     val relationName: String?
         get() {

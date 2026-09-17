@@ -222,7 +222,6 @@ class ManifestService(private val project: Project) : Disposable {
                 description = node.path("description").asText(""),
                 columns = parseColumns(node.get("columns")),
                 dependsOnNodes = node.path("depends_on").path("nodes").map { it.asText() },
-                dependsOnMacros = node.path("depends_on").path("macros").map { it.asText() },
                 tags = node.path("tags").map { it.asText() },
                 rawCode = node.path("raw_code").asText(null) ?: node.path("raw_sql").asText(null),
                 compiledCode = node.path("compiled_code").asText(null) ?: node.path("compiled_sql").asText(null),
@@ -266,11 +265,9 @@ class ManifestService(private val project: Project) : Disposable {
                 columns = parseColumns(node.get("columns")),
                 tags = node.path("tags").map { it.asText() },
                 loader = node.path("loader").asText(null),
-                sourceDescription = node.path("source_description").asText(null),
                 freshnessWarnAfter = warnAfter,
                 freshnessErrorAfter = errorAfter,
-                loadedAtField = node.path("loaded_at_field").asText(null),
-                externalRelationName = node.path("relation_name").asText(null)
+                loadedAtField = node.path("loaded_at_field").asText(null)
             )
         }
         return result
@@ -294,8 +291,7 @@ class ManifestService(private val project: Project) : Disposable {
                         type = arg.path("type").asText(null),
                         description = arg.path("description").asText("")
                     )
-                },
-                dependsOnMacros = node.path("depends_on").path("macros").map { it.asText() }
+                }
             )
         }
         return result
@@ -310,20 +306,11 @@ class ManifestService(private val project: Project) : Disposable {
             result[id] = DbtExposure(
                 uniqueId = id,
                 name = node.path("name").asText(""),
-                type = node.path("type").asText(""),
                 packageName = node.path("package_name").asText(""),
                 originalFilePath = node.path("original_file_path").asText(""),
                 description = node.path("description").asText(""),
-                owner = node.get("owner")?.let { ownerNode ->
-                    ExposureOwner(
-                        name = ownerNode.path("name").asText(null),
-                        email = ownerNode.path("email").asText(null)
-                    )
-                },
                 dependsOnNodes = node.path("depends_on").path("nodes").map { it.asText() },
-                dependsOnMacros = node.path("depends_on").path("macros").map { it.asText() },
-                tags = node.path("tags").map { it.asText() },
-                url = node.path("url").asText(null)
+                tags = node.path("tags").map { it.asText() }
             )
         }
         return result
