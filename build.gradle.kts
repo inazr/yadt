@@ -24,7 +24,6 @@ dependencies {
     implementation(libs.jackson.databind)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.snakeyaml)
-    implementation(libs.coroutines.core)
 
     intellijPlatform {
         val type = providers.gradleProperty("platformType").get()

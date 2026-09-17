@@ -2,20 +2,20 @@ package com.dbthelper.core
 
 import com.dbthelper.core.model.*
 import com.dbthelper.settings.DbtHelperSettings
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Service(Service.Level.PROJECT)
-class ManifestService(private val project: Project) : Disposable {
+class ManifestService(private val project: Project, private val scope: CoroutineScope) {
 
     private val logger = Logger.getInstance(ManifestService::class.java)
     private val locator get() = DbtProjectLocator.getInstance(project)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile
     private var cachedIndex: ManifestIndex = ManifestIndex.EMPTY
@@ -23,7 +23,7 @@ class ManifestService(private val project: Project) : Disposable {
     fun getIndex(): ManifestIndex = cachedIndex
 
     fun reparse() {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             doParse()
         }
     }
@@ -102,10 +102,6 @@ class ManifestService(private val project: Project) : Disposable {
         return getIndex().nodes.values
             .firstOrNull { it.resourceType == "model" && it.name == target }
             ?.uniqueId
-    }
-
-    override fun dispose() {
-        scope.cancel()
     }
 
     companion object {

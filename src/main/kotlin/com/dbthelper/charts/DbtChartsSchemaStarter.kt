@@ -15,7 +15,7 @@ import com.intellij.psi.search.GlobalSearchScope
 class DbtChartsSchemaStarter : ProjectActivity {
     override suspend fun execute(project: Project) {
         val resolver = DctSchemaResolver.getInstance(project)
-        project.messageBus.connect(resolver).subscribe(SettingsChangeListener.TOPIC, object : SettingsChangeListener {
+        project.messageBus.connect(resolver.cs).subscribe(SettingsChangeListener.TOPIC, object : SettingsChangeListener {
             override fun onSettingsChanged() {
                 resolver.refresh()
             }
