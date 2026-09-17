@@ -29,6 +29,11 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
   <li>Works in .sql, .jinja, and .jinja2 files</li>
 </ul>
 
+<h3>dbt Charts boards</h3>
+<ul>
+  <li>Completion, hover docs and structural errors for <a href="https://dbtcharts.com">dbt Charts</a> board YAML, from the schema of your installed <code>dct</code> (or an opt-in verified download)</li>
+</ul>
+
 <h3>Runner</h3>
 <ul>
   <li><b>Run / Build / Test / Compile</b> a single model or any dbt selection</li>

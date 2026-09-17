@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- New: **dbt Charts board editing.** Board YAML files under a dbt Charts project's `charts/` directory get completion, hover docs and structural errors from dbt Charts' own schema. YADT reads the schema from your installed `dct` so the editor matches the CLI that renders the board; if `dct` isn't installed you can let YADT download the newest released schema from GitHub (Settings → Tools → YADT → dbt Charts, off by default). Downloads are sha256-verified and cached
+
 ## [0.5.2] - 2026-08-26
 
 - Lineage: models inside a column are now ordered alphabetically wherever that is (nearly) free. The layout engine has many equally good optima and used to keep whichever one it reached first, which is why the order looked arbitrary; the graph now picks the alphabetical one from among them. A column keeps its alphabetical order only while it costs at most 5% more edge crossings than the engine's own order, or 2 more, whichever is the larger allowance — where sorting would be expensive, the readable layout wins. The flat allowance is what makes this work on small graphs, where 5% of a handful of crossings rounds down to no leeway at all. Group boxes keep their exact bounds, and "+ N more" stubs follow the model they belong to
