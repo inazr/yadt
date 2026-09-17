@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-17
+
 - New: **dbt Charts board editing.** Board YAML files under a dbt Charts project's `charts/` directory get completion, hover docs and structural errors from dbt Charts' own schema. YADT reads the schema from your installed `dct` so the editor matches the CLI that renders the board; if `dct` isn't installed you can let YADT download the newest released schema from GitHub (Settings → Tools → YADT → dbt Charts, off by default). Downloads are sha256-verified and cached
 - dbt Charts boards: `ref()` / `source()` completion, Ctrl/Cmd+Click navigation, hover docs and unresolved-reference warnings now work inside board `queries:`, the same as in `.sql` models. dbt macro completion is not offered there, because dbt Charts doesn't resolve dbt macros
 
@@ -95,7 +97,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/inazr/yadt/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/inazr/yadt/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/inazr/yadt/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/inazr/yadt/compare/v0.4.2...v0.5.0
