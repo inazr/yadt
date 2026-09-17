@@ -5,37 +5,17 @@ import com.dbthelper.core.model.DbtNode
 import com.dbthelper.core.model.DbtSource
 import com.dbthelper.core.model.ManifestIndex
 import com.fasterxml.jackson.databind.JsonNode
-import com.intellij.openapi.components.Service
-import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.project.Project
 
-@Service(Service.Level.PROJECT)
-class CatalogParser(private val project: Project) {
+/** Fills warehouse column types from a parsed `target/catalog.json` into a [ManifestIndex]. */
+object CatalogMerger {
 
-    private val logger = Logger.getInstance(CatalogParser::class.java)
-
-    fun mergeCatalog(index: ManifestIndex): ManifestIndex {
-        val locator = DbtProjectLocator.getInstance(project)
-        val catalogFile = locator.getCatalogFile() ?: return index
-
-        return try {
-            val root = catalogFile.inputStream.use { jsonMapper.readTree(it) }
-            val catalogNodes = root.get("nodes") ?: return index
-            val catalogSources = root.get("sources")
-
-            val updatedNodes = index.nodes.toMutableMap()
-            mergeNodeColumns(catalogNodes, updatedNodes)
-
-            val updatedSources = index.sources.toMutableMap()
-            if (catalogSources != null) {
-                mergeSourceColumns(catalogSources, updatedSources)
-            }
-
-            index.copy(nodes = updatedNodes, sources = updatedSources)
-        } catch (e: Exception) {
-            logger.warn("Failed to parse catalog.json", e)
-            index
-        }
+    fun merge(index: ManifestIndex, catalog: JsonNode): ManifestIndex {
+        val catalogNodes = catalog.get("nodes") ?: return index
+        val updatedNodes = index.nodes.toMutableMap()
+        mergeNodeColumns(catalogNodes, updatedNodes)
+        val updatedSources = index.sources.toMutableMap()
+        catalog.get("sources")?.let { mergeSourceColumns(it, updatedSources) }
+        return index.copy(nodes = updatedNodes, sources = updatedSources)
     }
 
     private fun mergeNodeColumns(catalogNodes: JsonNode, nodes: MutableMap<String, DbtNode>) {
