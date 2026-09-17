@@ -28,4 +28,9 @@ class ChartsDependencyDeclarationTest {
     fun `json schema dependency is optional with an existing config file`() {
         assertOptionalDependency("com.intellij.modules.json")
     }
+
+    @Test
+    fun `yaml dependency is optional with an existing config file`() {
+        assertOptionalDependency("org.jetbrains.plugins.yaml")
+    }
 }

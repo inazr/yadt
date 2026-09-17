@@ -32,6 +32,7 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
 <h3>dbt Charts boards</h3>
 <ul>
   <li>Completion, hover docs and structural errors for <a href="https://dbtcharts.com">dbt Charts</a> board YAML, from the schema of your installed <code>dct</code> (or an opt-in verified download)</li>
+  <li><code>ref()</code> / <code>source()</code> completion, go to definition, hover docs and unresolved-reference warnings inside board queries</li>
 </ul>
 
 <h3>Runner</h3>
@@ -72,6 +73,9 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
     <!-- dbt Charts board schema (JSON Schema engine). Optional: YADT must load in IDEs without the
          JSON plugin; board files then simply get no schema. See yadt-charts-schema.xml. -->
     <depends optional="true" config-file="yadt-charts-schema.xml">com.intellij.modules.json</depends>
+    <!-- ref()/source() intelligence inside dbt Charts board YAML. Optional for the same reason as
+         the JSON dependency above. See yadt-charts-yaml.xml. -->
+    <depends optional="true" config-file="yadt-charts-yaml.xml">org.jetbrains.plugins.yaml</depends>
 
     <resource-bundle>messages.DbtHelperBundle</resource-bundle>
 

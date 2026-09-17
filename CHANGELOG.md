@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - New: **dbt Charts board editing.** Board YAML files under a dbt Charts project's `charts/` directory get completion, hover docs and structural errors from dbt Charts' own schema. YADT reads the schema from your installed `dct` so the editor matches the CLI that renders the board; if `dct` isn't installed you can let YADT download the newest released schema from GitHub (Settings → Tools → YADT → dbt Charts, off by default). Downloads are sha256-verified and cached
+- dbt Charts boards: `ref()` / `source()` completion, Ctrl/Cmd+Click navigation, hover docs and unresolved-reference warnings now work inside board `queries:`, the same as in `.sql` models. dbt macro completion is not offered there, because dbt Charts doesn't resolve dbt macros
 
 ## [0.5.2] - 2026-08-26
 

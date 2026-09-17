@@ -1,0 +1,18 @@
+<!--
+  Optional sub-descriptor for the YAML plugin (org.jetbrains.plugins.yaml): ref()/source() code
+  intelligence inside dbt Charts board queries. The "yaml" language only exists with that plugin.
+  completion.contributor (language="any"), the v2 documentation target providers and
+  gotoDeclarationHandler are language-agnostic and registered in plugin.xml; the isDbtCodeIntelFile
+  gate restricts all of them to board files. TerminalColumnAnnotator is deliberately NOT registered:
+  it concerns model output columns in .sql files.
+-->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <psi.referenceContributor language="yaml"
+                                  implementation="com.dbthelper.codeintel.DbtReferenceContributor"/>
+        <lang.documentationProvider language="yaml"
+                                    implementationClass="com.dbthelper.codeintel.DbtDocumentationProvider"/>
+        <annotator language="yaml"
+                   implementationClass="com.dbthelper.codeintel.DbtAnnotator"/>
+    </extensions>
+</idea-plugin>
