@@ -1,6 +1,8 @@
 package com.dbthelper.core
 
 import com.dbthelper.core.model.DbtColumn
+import com.dbthelper.core.model.DbtNode
+import com.dbthelper.core.model.DbtSource
 import com.dbthelper.core.model.ManifestIndex
 import com.fasterxml.jackson.databind.JsonNode
 import com.intellij.openapi.components.Service
@@ -36,53 +38,40 @@ class CatalogParser(private val project: Project) {
         }
     }
 
-    private fun mergeNodeColumns(catalogNodes: JsonNode, nodes: MutableMap<String, com.dbthelper.core.model.DbtNode>) {
-        val fields = catalogNodes.fields()
-        while (fields.hasNext()) {
-            val (id, catalogNode) = fields.next()
-            val existingNode = nodes[id] ?: continue
-            val catalogColumns = catalogNode.path("columns")
-            if (catalogColumns.isMissingNode) continue
-
-            val mergedColumns = existingNode.columns.toMutableMap()
-            val colFields = catalogColumns.fields()
-            while (colFields.hasNext()) {
-                val (colName, colNode) = colFields.next()
-                val existing = mergedColumns[colName]
-                mergedColumns[colName] = DbtColumn(
-                    name = colName,
-                    description = existing?.description ?: "",
-                    dataType = colNode.path("type").asText(null) ?: existing?.dataType,
-                    tags = existing?.tags ?: emptyList(),
-                    isPrimaryKey = existing?.isPrimaryKey ?: false
-                )
-            }
-            nodes[id] = existingNode.copy(columns = mergedColumns)
+    private fun mergeNodeColumns(catalogNodes: JsonNode, nodes: MutableMap<String, DbtNode>) {
+        for ((id, catalogNode) in catalogNodes.fields()) {
+            val existing = nodes[id] ?: continue
+            val columns = mergeColumns(catalogNode, existing.columns) ?: continue
+            nodes[id] = existing.copy(columns = columns)
         }
     }
 
-    private fun mergeSourceColumns(catalogSources: JsonNode, sources: MutableMap<String, com.dbthelper.core.model.DbtSource>) {
-        val fields = catalogSources.fields()
-        while (fields.hasNext()) {
-            val (id, catalogNode) = fields.next()
-            val existingSource = sources[id] ?: continue
-            val catalogColumns = catalogNode.path("columns")
-            if (catalogColumns.isMissingNode) continue
-
-            val mergedColumns = existingSource.columns.toMutableMap()
-            val colFields = catalogColumns.fields()
-            while (colFields.hasNext()) {
-                val (colName, colNode) = colFields.next()
-                val existing = mergedColumns[colName]
-                mergedColumns[colName] = DbtColumn(
-                    name = colName,
-                    description = existing?.description ?: "",
-                    dataType = colNode.path("type").asText(null) ?: existing?.dataType,
-                    tags = existing?.tags ?: emptyList(),
-                    isPrimaryKey = existing?.isPrimaryKey ?: false
-                )
-            }
-            sources[id] = existingSource.copy(columns = mergedColumns)
+    private fun mergeSourceColumns(catalogSources: JsonNode, sources: MutableMap<String, DbtSource>) {
+        for ((id, catalogNode) in catalogSources.fields()) {
+            val existing = sources[id] ?: continue
+            val columns = mergeColumns(catalogNode, existing.columns) ?: continue
+            sources[id] = existing.copy(columns = columns)
         }
+    }
+
+    /**
+     * [existing] columns with the catalog's warehouse types filled in; catalog-only columns are
+     * added. Null when the catalog entry has no `columns`.
+     */
+    private fun mergeColumns(catalogNode: JsonNode, existing: Map<String, DbtColumn>): Map<String, DbtColumn>? {
+        val catalogColumns = catalogNode.path("columns")
+        if (catalogColumns.isMissingNode) return null
+        val merged = existing.toMutableMap()
+        for ((colName, colNode) in catalogColumns.fields()) {
+            val known = merged[colName]
+            merged[colName] = DbtColumn(
+                name = colName,
+                description = known?.description ?: "",
+                dataType = colNode.path("type").asText(null) ?: known?.dataType,
+                tags = known?.tags ?: emptyList(),
+                isPrimaryKey = known?.isPrimaryKey ?: false
+            )
+        }
+        return merged
     }
 }

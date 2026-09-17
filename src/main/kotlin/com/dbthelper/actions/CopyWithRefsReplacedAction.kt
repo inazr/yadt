@@ -1,6 +1,7 @@
 package com.dbthelper.actions
 
 import com.dbthelper.core.YadtNotifier
+import com.dbthelper.codeintel.findSource
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.model.ManifestIndex
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -71,8 +72,7 @@ class CopyWithRefsReplacedAction : AnAction("Copy for Target DB") {
             if (currentModelId != null) {
                 val currentNode = index.nodes[currentModelId]
                 if (currentNode != null) {
-                    val relation = buildRelationName(currentNode.database.takeIf { includeDatabase }, currentNode.schema, currentNode.alias ?: currentNode.name)
-                    result = JINJA_THIS.replace(result, relation)
+                    result = JINJA_THIS.replace(result, currentNode.qualifiedName(includeDatabase))
                 }
             }
 
@@ -80,25 +80,13 @@ class CopyWithRefsReplacedAction : AnAction("Copy for Target DB") {
             result = JINJA_SOURCE.replace(result) { match ->
                 val srcName = match.groupValues[1]
                 val tblName = match.groupValues[2]
-                val source = index.sources.values.firstOrNull {
-                    it.sourceName == srcName && it.name == tblName
-                }
-                if (source != null) {
-                    buildRelationName(source.database.takeIf { includeDatabase }, source.schema, source.identifier ?: source.name)
-                } else {
-                    match.value
-                }
+                index.findSource(srcName, tblName)?.qualifiedName(includeDatabase) ?: match.value
             }
 
             // Replace {{ ref('model') }} → [database.]schema.table
             result = JINJA_REF.replace(result) { match ->
                 val modelName = match.groupValues[1]
-                val node = index.nodes.values.firstOrNull { it.name == modelName }
-                if (node != null) {
-                    buildRelationName(node.database.takeIf { includeDatabase }, node.schema, node.alias ?: node.name)
-                } else {
-                    match.value
-                }
+                index.nodes.values.firstOrNull { it.name == modelName }?.qualifiedName(includeDatabase) ?: match.value
             }
 
             // Comment out remaining Jinja blocks: {% ... %} and {{ config(...) }} → /* ... */
@@ -106,11 +94,6 @@ class CopyWithRefsReplacedAction : AnAction("Copy for Target DB") {
             result = jinjaBlock.replace(result) { "/* ${it.value} */" }
 
             return result.trim()
-        }
-
-        private fun buildRelationName(database: String?, schema: String?, table: String): String {
-            val parts = listOfNotNull(database, schema, table)
-            return parts.joinToString(".")
         }
     }
 }

@@ -17,11 +17,11 @@ data class DbtSource(
     val freshnessErrorAfter: String? = null,
     val loadedAtField: String? = null
 ) {
+    /** `[database.]schema.identifier` as dbt builds the relation, skipping missing parts. */
+    fun qualifiedName(includeDatabase: Boolean = true): String =
+        listOfNotNull(database.takeIf { includeDatabase }, schema, identifier ?: name).joinToString(".")
+
+    /** Lower-cased fully qualified relation, or null unless database and schema are known. */
     val relationName: String?
-        get() {
-            val db = database ?: return null
-            val sch = schema ?: return null
-            val tbl = identifier ?: name
-            return "$db.$sch.$tbl".lowercase()
-        }
+        get() = if (database == null || schema == null) null else qualifiedName().lowercase()
 }

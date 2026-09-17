@@ -19,11 +19,11 @@ data class DbtNode(
     val fqn: List<String> = emptyList(),
     val patchPath: String? = null
 ) {
+    /** `[database.]schema.identifier` as dbt builds the relation, skipping missing parts. */
+    fun qualifiedName(includeDatabase: Boolean = true): String =
+        listOfNotNull(database.takeIf { includeDatabase }, schema, alias ?: name).joinToString(".")
+
+    /** Lower-cased fully qualified relation, or null unless database and schema are known. */
     val relationName: String?
-        get() {
-            val db = database ?: return null
-            val sch = schema ?: return null
-            val tbl = alias ?: name
-            return "$db.$sch.$tbl".lowercase()
-        }
+        get() = if (database == null || schema == null) null else qualifiedName().lowercase()
 }

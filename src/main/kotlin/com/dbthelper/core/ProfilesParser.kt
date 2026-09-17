@@ -47,34 +47,19 @@ class ProfilesParser(private val project: Project) {
         }
     }
 
-    private fun readProfileFromProject(): String? {
-        return try {
-            val root = locator.findProjectRoot() ?: return null
-            val dbtProjectFile = root.findChild("dbt_project.yml") ?: return null
-            val yaml = Yaml()
-            @Suppress("UNCHECKED_CAST")
-            val data = dbtProjectFile.inputStream.use { yaml.load<Map<String, Any>>(it) }
-            data["profile"] as? String
-        } catch (e: Exception) {
-            logger.warn("Failed to read profile from dbt_project.yml", e)
-            null
-        }
-    }
+    private fun readProfileFromProject(): String? = readDbtProjectYml()?.get("profile") as? String
 
     /** The dbt project's `name:` from dbt_project.yml (used for target/compiled/<name>/…). */
     fun getProjectName(): String? {
         cachedProjectName?.let { return it }
-        return try {
-            val root = locator.findProjectRoot() ?: return null
-            val dbtProjectFile = root.findChild("dbt_project.yml") ?: return null
-            val yaml = Yaml()
-            @Suppress("UNCHECKED_CAST")
-            val data = dbtProjectFile.inputStream.use { yaml.load<Map<String, Any>>(it) }
-            (data["name"] as? String).also { cachedProjectName = it }
-        } catch (e: Exception) {
-            logger.warn("Failed to read project name from dbt_project.yml", e)
-            null
-        }
+        return (readDbtProjectYml()?.get("name") as? String).also { cachedProjectName = it }
+    }
+
+    private fun readDbtProjectYml(): Map<String, Any>? = try {
+        locator.findProjectRoot()?.findChild("dbt_project.yml")?.inputStream?.use { Yaml().load<Map<String, Any>>(it) }
+    } catch (e: Exception) {
+        logger.warn("Failed to read dbt_project.yml", e)
+        null
     }
 
     fun getTargetNames(): List<String> = parse()?.targetNames ?: emptyList()

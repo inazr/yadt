@@ -18,8 +18,7 @@ object FreshnessDetailBuilder {
             "id" to source.uniqueId,
             "name" to "${source.sourceName}.${source.name}",
             "sourceName" to source.sourceName,
-            "relation" to listOfNotNull(source.database, source.schema, source.identifier ?: source.name)
-                .joinToString("."),
+            "relation" to source.qualifiedName(),
             "status" to status,
             "message" to result?.message,
             "loadedAtField" to source.loadedAtField,
