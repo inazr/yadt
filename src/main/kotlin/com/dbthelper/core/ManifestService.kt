@@ -102,8 +102,8 @@ class ManifestService(private val project: Project) : Disposable {
                 // Map the yml that documents this node (its patch_path) -> node id, so
                 // opening a schema.yml can focus all the models/seeds/snapshots it covers.
                 if (node.resourceType in BUILDABLE_RESOURCE_TYPES) {
-                    node.patchPath?.let { pp ->
-                        val rel = pp.substringAfter("://").toUnixPath()
+                    node.patchFilePath?.let { pp ->
+                        val rel = pp.toUnixPath()
                         if (rel.isNotEmpty()) {
                             patchPathMapBuilder.getOrPut(rel) { mutableListOf() }.add(id)
                         }

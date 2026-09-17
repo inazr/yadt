@@ -1,6 +1,7 @@
 package com.dbthelper.toolwindow.selector
 
 import com.dbthelper.core.model.BUILDABLE_RESOURCE_TYPES
+import com.dbthelper.core.toUnixPath
 import com.dbthelper.core.model.ManifestIndex
 
 /** Pre-built, de-duplicated, sorted pools the autocomplete fuzzy-matches against. */
@@ -46,7 +47,7 @@ data class SelectorCandidates(
 
         /** Every directory prefix of a path: `models/staging/x.sql` -> [`models`, `models/staging`]. */
         private fun dirPrefixes(filePath: String): List<String> {
-            val parts = filePath.replace('\\', '/').split('/').dropLast(1)
+            val parts = filePath.toUnixPath().split('/').dropLast(1)
             val out = ArrayList<String>(parts.size)
             val sb = StringBuilder()
             for (p in parts) {

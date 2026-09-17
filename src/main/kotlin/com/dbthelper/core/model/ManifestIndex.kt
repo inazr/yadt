@@ -32,6 +32,10 @@ data class ManifestIndex(
         return relationMap[key]
     }
 
+    /** Project-relative file that defines [uniqueId], whether it is a node, source or exposure. */
+    fun originalFilePathOf(uniqueId: String): String? =
+        nodes[uniqueId]?.originalFilePath ?: sources[uniqueId]?.originalFilePath ?: exposures[uniqueId]?.originalFilePath
+
     fun getUpstream(uniqueId: String): List<String> = parentMap[uniqueId] ?: emptyList()
 
     fun getDownstream(uniqueId: String): List<String> = childMap[uniqueId] ?: emptyList()

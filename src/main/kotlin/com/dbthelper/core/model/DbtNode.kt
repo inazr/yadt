@@ -19,6 +19,10 @@ data class DbtNode(
     val fqn: List<String> = emptyList(),
     val patchPath: String? = null
 ) {
+    /** The documenting yml's project-relative path: patch_path without its "package://" prefix. */
+    val patchFilePath: String?
+        get() = patchPath?.substringAfter("://")
+
     /** `[database.]schema.identifier` as dbt builds the relation, skipping missing parts. */
     fun qualifiedName(includeDatabase: Boolean = true): String =
         listOfNotNull(database.takeIf { includeDatabase }, schema, alias ?: name).joinToString(".")

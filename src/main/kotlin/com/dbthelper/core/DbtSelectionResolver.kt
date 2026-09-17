@@ -164,10 +164,10 @@ class DbtSelectionResolver(private val project: Project?) {
     }
 
     private fun byPath(index: ManifestIndex, value: String): Set<String> {
-        val prefix = value.replace('\\', '/').trimEnd('/')
+        val prefix = value.toUnixPath().trimEnd('/')
         val out = LinkedHashSet<String>()
         fun match(id: String, path: String) {
-            val p = path.replace('\\', '/')
+            val p = path.toUnixPath()
             if (p == prefix || p.startsWith("$prefix/")) out += id
         }
         index.nodes.values.forEach { match(it.uniqueId, it.originalFilePath) }

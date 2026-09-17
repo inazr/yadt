@@ -10,7 +10,7 @@ import com.dbthelper.actions.DbtRunStatusParser
 import com.dbthelper.actions.DbtVerb
 import com.dbthelper.actions.RunResultsParser
 import com.dbthelper.actions.nodeStatuses
-import com.dbthelper.core.DbtSelectorParser
+import com.dbthelper.core.DbtSelectionResolver
 import com.dbthelper.core.DocsPayloadBuilder
 import com.dbthelper.core.FreshnessDetailBuilder
 import com.dbthelper.core.LineageGraphBuilder
@@ -169,9 +169,7 @@ class LineageTab(
                         refreshGraph()
                     }
                     "nodeClick" -> {
-                        val nodeId = payload.path("nodeId").asText()
-                        val resourceType = payload.path("resourceType").asText()
-                        handleNodeClick(nodeId, resourceType)
+                        handleNodeClick(payload.path("nodeId").asText())
                     }
                     "previewNode" -> {
                         val nodeId = payload.path("nodeId").asText()
@@ -349,24 +347,9 @@ class LineageTab(
         // If current model is a source/exposure in the same file, don't override
         // (user may have clicked a specific node in the graph)
         if (modelId != null && modelId != currentModelId) {
-            val currentIsInSameFile = currentModelId?.let { curId ->
-                val curPath = index.nodes[curId]?.originalFilePath
-                    ?: index.sources[curId]?.originalFilePath
-                    ?: index.exposures[curId]?.originalFilePath
-                val newPath = index.nodes[modelId]?.originalFilePath
-                    ?: index.sources[modelId]?.originalFilePath
-                    ?: index.exposures[modelId]?.originalFilePath
-                curPath != null && curPath == newPath
-            } ?: false
-
-            if (!currentIsInSameFile) {
-                selectionIds = null
-                currentModelId = modelId
-                expandedBoundaryNodes.clear()
-                selectorUpstreamDepth = null
-                selectorDownstreamDepth = null
-                refreshGraph()
-            }
+            val curPath = currentModelId?.let { index.originalFilePathOf(it) }
+            val currentIsInSameFile = curPath != null && curPath == index.originalFilePathOf(modelId)
+            if (!currentIsInSameFile) focusNode(modelId)
         } else if (modelId != null && modelId == currentModelId) {
             ApplicationManager.getApplication().invokeLater {
                 if (!isDisposed) executeJs("highlightNode('${escapeJs(modelId)}')")
@@ -421,7 +404,11 @@ class LineageTab(
      */
     fun refocusOnNode(nodeId: String) {
         if (isDisposed) return
-        if (nodeId == currentModelId) return
+        if (nodeId != currentModelId) focusNode(nodeId)
+    }
+
+    /** Focus the graph on the single node [nodeId], dropping any selection, depth overrides and expansions. */
+    private fun focusNode(nodeId: String) {
         selectionIds = null
         currentModelId = nodeId
         expandedBoundaryNodes.clear()
@@ -433,44 +420,18 @@ class LineageTab(
     /**
      * Open the source file for [nodeId] in the editor.
      * When [preferYaml] is true, prefer the node's patch_path (YAML schema file) if
-     * available; otherwise fall back to [originalFilePath] (the SQL file).
-     * The patch_path in the dbt manifest uses a "package://" prefix that is stripped.
+     * available; otherwise open the file that defines it (the SQL file for models).
      */
     fun openFileForNode(nodeId: String, preferYaml: Boolean) {
         if (isDisposed) return
         ApplicationManager.getApplication().invokeLater {
             if (isDisposed) return@invokeLater
-            val service = ManifestService.getInstance(project)
-            val index = service.getIndex()
-            val locator = DbtProjectLocator.getInstance(project)
-            val dbtRoot = locator.findProjectRoot() ?: return@invokeLater
-
-            val sqlPath: String?
-            val yamlPath: String?
-
-            when {
-                index.sources.containsKey(nodeId) -> {
-                    val src = index.sources[nodeId]!!
-                    sqlPath = null
-                    yamlPath = src.originalFilePath
-                }
-                index.exposures.containsKey(nodeId) -> {
-                    val exp = index.exposures[nodeId]!!
-                    sqlPath = null
-                    yamlPath = exp.originalFilePath
-                }
-                else -> {
-                    val node = index.nodes[nodeId]
-                    sqlPath = node?.originalFilePath
-                    // patchPath is stored as "package://relative/path.yml" — strip prefix
-                    yamlPath = node?.patchPath?.let { pp ->
-                        val sepIdx = pp.indexOf("://")
-                        if (sepIdx >= 0) pp.substring(sepIdx + 3) else pp
-                    }
-                }
-            }
-
-            val relativePath = if (preferYaml && yamlPath != null) yamlPath else (sqlPath ?: yamlPath)
+            val index = ManifestService.getInstance(project).getIndex()
+            val dbtRoot = DbtProjectLocator.getInstance(project).findProjectRoot() ?: return@invokeLater
+            // Sources and exposures are defined in yml; a node's yml is its patch_path, if documented.
+            val yamlPath = index.nodes[nodeId]?.patchFilePath
+            val relativePath = (if (preferYaml) yamlPath else null)
+                ?: index.originalFilePathOf(nodeId)
                 ?: return@invokeLater
 
             val fullPath = "${dbtRoot.path}/$relativePath"
@@ -478,6 +439,9 @@ class LineageTab(
             FileEditorManager.getInstance(project).openFile(vFile, true)
         }
     }
+
+    private fun sourcesJsonPath(): java.nio.file.Path? =
+        DbtProjectLocator.getInstance(project).getTargetDir()?.let { java.nio.file.Path.of(it.path, "sources.json") }
 
     fun refreshGraph() {
         if (!isPageReady || isDisposed) return
@@ -493,10 +457,7 @@ class LineageTab(
                 val settings = DbtHelperSettings.getInstance(project)
                 val locator = DbtProjectLocator.getInstance(project)
                 val catalogAvailable = locator.getCatalogFile() != null
-                val sourcesFile = locator.getTargetDir()?.let { target ->
-                    java.nio.file.Paths.get(target.path, "sources.json")
-                }
-                val freshness = sourcesFile?.let { SourcesFreshnessParser().parseFile(it) } ?: emptyMap()
+                val freshness = sourcesJsonPath()?.let { SourcesFreshnessParser().parseFile(it) } ?: emptyMap()
                 val builder = LineageGraphBuilder(index, project, catalogAvailable, freshness)
 
                 val graph = if (selection != null) {
@@ -525,7 +486,7 @@ class LineageTab(
                     .toSet()
 
                 val graphJson = jsonMapper.writeValueAsString(graph)
-                val escaped = escapeJsJson(graphJson)
+                val escaped = escapeJs(graphJson)
 
                 ApplicationManager.getApplication().invokeLater {
                     if (isDisposed) return@invokeLater
@@ -546,7 +507,7 @@ class LineageTab(
 
     private fun applyCurrentTheme() {
         if (!isPageReady || isDisposed) return
-        val payload = escapeJsJson(jsonMapper.writeValueAsString(buildThemeVars()))
+        val payload = escapeJs(jsonMapper.writeValueAsString(buildThemeVars()))
         executeJs("applyThemeColors('$payload')")
     }
 
@@ -621,38 +582,11 @@ class LineageTab(
 
     private fun hex(c: java.awt.Color): String = "#%06x".format(0xFFFFFF and c.rgb)
 
-    private fun handleNodeClick(nodeId: String, resourceType: String) {
+    private fun handleNodeClick(nodeId: String) {
         // Focus lineage on clicked node directly (don't wait for file open event)
-        if (nodeId != currentModelId) {
-            selectionIds = null
-            currentModelId = nodeId
-            expandedBoundaryNodes.clear()
-            selectorUpstreamDepth = null
-            selectorDownstreamDepth = null
-            refreshGraph()
-        }
-
-        // Push docs payload to the sidebar
+        if (nodeId != currentModelId) focusNode(nodeId)
         pushDocsToSidebar(nodeId)
-
-        // Also open the file in editor
-        ApplicationManager.getApplication().invokeLater {
-            if (isDisposed) return@invokeLater
-            val service = ManifestService.getInstance(project)
-            val index = service.getIndex()
-            val locator = DbtProjectLocator.getInstance(project)
-            val dbtRoot = locator.findProjectRoot() ?: return@invokeLater
-
-            val filePath = when (resourceType) {
-                "source" -> index.sources[nodeId]?.originalFilePath
-                "exposure" -> index.exposures[nodeId]?.originalFilePath
-                else -> index.nodes[nodeId]?.originalFilePath
-            } ?: return@invokeLater
-
-            val fullPath = "${dbtRoot.path}/$filePath"
-            val vFile = LocalFileSystem.getInstance().findFileByPath(fullPath) ?: return@invokeLater
-            FileEditorManager.getInstance(project).openFile(vFile, true)
-        }
+        openFileForNode(nodeId, preferYaml = false)
     }
 
     private fun pushDocsToSidebar(nodeId: String) {
@@ -664,7 +598,7 @@ class LineageTab(
                 val index = service.getIndex()
                 val payload = DocsPayloadBuilder.build(nodeId, index) ?: return@executeOnPooledThread
                 val json = jsonMapper.writeValueAsString(payload)
-                val escaped = escapeJsJson(json)
+                val escaped = escapeJs(json)
                 ApplicationManager.getApplication().invokeLater {
                     if (!isDisposed) executeJs("showDocs('$escaped')")
                 }
@@ -681,15 +615,13 @@ class LineageTab(
                 if (isDisposed) return@executeOnPooledThread
                 val service = ManifestService.getInstance(project)
                 val index = service.getIndex()
-                val sourcesFile = DbtProjectLocator.getInstance(project).getTargetDir()?.let { target ->
-                    java.nio.file.Paths.get(target.path, "sources.json")
-                }
+                val sourcesFile = sourcesJsonPath()
                 val available = sourcesFile?.let { java.nio.file.Files.exists(it) } ?: false
                 val freshness = sourcesFile?.let { SourcesFreshnessParser().parseFile(it) } ?: emptyMap()
                 val payload = FreshnessDetailBuilder.build(nodeId, index, freshness, available)
                     ?: return@executeOnPooledThread
                 val json = jsonMapper.writeValueAsString(payload)
-                val escaped = escapeJsJson(json)
+                val escaped = escapeJs(json)
                 ApplicationManager.getApplication().invokeLater {
                     if (!isDisposed) executeJs("showFreshnessDetail('$escaped')")
                 }
@@ -767,12 +699,7 @@ class LineageTab(
             val index = ManifestService.getInstance(project).getIndex()
             val firstHidden = index.getDownstream(boundaryNodeId)
                 .firstOrNull { it !in lastVisibleNodeIds }
-            val target = firstHidden ?: boundaryNodeId
-            val resourceType = index.nodes[target]?.resourceType
-                ?: index.sources[target]?.let { "source" }
-                ?: index.exposures[target]?.let { "exposure" }
-                ?: "model"
-            handleNodeClick(target, resourceType)
+            handleNodeClick(firstHidden ?: boundaryNodeId)
             return
         }
         expandedBoundaryNodes.add(boundaryNodeId)
@@ -800,8 +727,9 @@ class LineageTab(
     /**
      * Called at [RUN]: build the relation index and seed as queued exactly the nodes
      * that `dbt build --select <selector>` will build (without clearing unrelated
-     * statuses). Falls back to the rendered graph's buildable nodes when [selector]
-     * is outside the graph-operator grammar we can resolve.
+     * statuses): the buildable part of [selector]'s live resolution — a bare name is just
+     * that node, as in dbt, not the padded graph view. Falls back to the rendered graph's
+     * buildable nodes when the selector needs `dbt ls` to resolve.
      */
     fun beginRunStatus(selector: String) {
         if (isDisposed) return
@@ -809,63 +737,14 @@ class LineageTab(
             if (isDisposed) return@executeOnPooledThread
             val index = ManifestService.getInstance(project).getIndex()
             runRelationKeyIndex = buildRelationKeyIndex(index)
-            val targetedIds = resolveSelectorPathIds(index, selector) ?: lastBuildableNodeIds
-            val idsJson = escapeJsJson(jsonMapper.writeValueAsString(targetedIds))
+            val targetedIds = DbtSelectionResolver(project).resolveLive(index, selector)
+                ?.filter { index.nodes[it]?.resourceType in BUILDABLE_RESOURCE_TYPES }
+                ?: lastBuildableNodeIds
+            val idsJson = escapeJs(jsonMapper.writeValueAsString(targetedIds))
             ApplicationManager.getApplication().invokeLater {
                 if (isDisposed) return@invokeLater
                 if (targetedIds.isNotEmpty()) executeJs("seedQueuedStatuses('$idsJson')")
             }
-        }
-    }
-
-    /**
-     * Resolve the buildable node ids that [selector] actually targets, so the queue
-     * highlights exactly what `dbt build --select <selector>` builds — not the wider
-     * context the graph pads around the focused model.
-     *
-     * Each whitespace-separated token is parsed as a graph-operator selector; a bare
-     * name (no `+`) targets only that node (depth 0/0), matching dbt — unlike the graph
-     * view, which expands bare names to the configured display depth. Returns null if
-     * any token falls outside the grammar (wildcards, `tag:`, …) so the caller can fall
-     * back to the rendered graph's buildable nodes rather than guess.
-     */
-    private fun resolveSelectorPathIds(index: ManifestIndex, selector: String): List<String>? {
-        val tokens = selector.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-        if (tokens.isEmpty()) return null
-        val result = LinkedHashSet<String>()
-        for (token in tokens) {
-            val focus = DbtSelectorParser.parse(token) ?: return null
-            val startId = index.nodes.entries.firstOrNull {
-                it.value.name == focus.modelName &&
-                    it.value.resourceType in BUILDABLE_RESOURCE_TYPES
-            }?.key ?: continue
-            result += startId
-            collectReachable(index, startId, focus.upstreamDepth ?: 0, upstream = true, into = result)
-            collectReachable(index, startId, focus.downstreamDepth ?: 0, upstream = false, into = result)
-        }
-        return result.filter { index.nodes[it]?.resourceType in BUILDABLE_RESOURCE_TYPES }
-    }
-
-    /** BFS from [startId] up to [depth] levels along parents (upstream) or children, collecting ids into [into]. */
-    private fun collectReachable(
-        index: ManifestIndex,
-        startId: String,
-        depth: Int,
-        upstream: Boolean,
-        into: MutableSet<String>
-    ) {
-        if (depth <= 0) return
-        val visited = hashSetOf(startId)
-        var frontier = listOf(startId)
-        var remaining = depth
-        while (remaining > 0 && frontier.isNotEmpty()) {
-            val next = ArrayList<String>()
-            for (id in frontier) {
-                val neighbours = if (upstream) index.getUpstream(id) else index.getDownstream(id)
-                for (n in neighbours) if (visited.add(n)) { into.add(n); next += n }
-            }
-            frontier = next
-            remaining--
         }
     }
 
@@ -874,7 +753,7 @@ class LineageTab(
         if (isDisposed) return
         val update = DbtRunStatusParser.parseLine(line) ?: return
         val uniqueId = runRelationKeyIndex?.get(update.relationKey) ?: return
-        val escaped = escapeJsJson(jsonMapper.writeValueAsString(mapOf(uniqueId to update.status.wire)))
+        val escaped = escapeJs(jsonMapper.writeValueAsString(mapOf(uniqueId to update.status.wire)))
         ApplicationManager.getApplication().invokeLater {
             if (!isDisposed) executeJs("setNodeStatuses('$escaped')")
         }
@@ -889,7 +768,7 @@ class LineageTab(
             val statuses = nodeStatuses(RunResultsParser().parseFile(java.nio.file.Path.of(dbtRoot.path, "target", "run_results.json")))
             runRelationKeyIndex = null
             val json = jsonMapper.writeValueAsString(statuses)
-            val escaped = escapeJsJson(json)
+            val escaped = escapeJs(json)
             ApplicationManager.getApplication().invokeLater {
                 if (!isDisposed) executeJs("applyRunResults('$escaped')")
             }
@@ -973,16 +852,15 @@ class LineageTab(
         return out
     }
 
-    private fun escapeJsJson(json: String): String =
-        json.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+    /** Escape [s] for embedding in a single-quoted JS string literal. */
+    private fun escapeJs(s: String): String =
+        s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
 
     private fun executeJs(code: String) {
         if (!isDisposed) {
             browser.cefBrowser.executeJavaScript(code, browser.cefBrowser.url, 0)
         }
     }
-
-    private fun escapeJs(s: String): String = s.replace("\\", "\\\\").replace("'", "\\'")
 
     override fun dispose() {
         isDisposed = true
