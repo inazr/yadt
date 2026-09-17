@@ -15,10 +15,14 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
   <li>Drive the graph by typing a dbt selector — <code>tag:</code>, <code>path:</code>, <code>source:</code>, fqn, globs, and graph operators like <code>2+my_model+</code> — with autocomplete as you type</li>
   <li>Click a node to open its file; expand boundary nodes to explore deeper dependencies</li>
   <li>Build status and source freshness shown on the cards; failing tests flagged separately</li>
+  <li>Group cards by schema, folder, or tag; search nodes and navigate large graphs with the minimap</li>
   <li>Configurable depth, layout direction, and edge style; adapts to your full IDE theme</li>
   <li>Copy the visible graph to the clipboard as an image for documentation</li>
   <li>Auto-updates when the manifest changes</li>
 </ul>
+
+<h3>Docs sidebar</h3>
+<p>Columns, tests, SQL, and metadata for the selected model, side by side with the lineage graph.</p>
 
 <h3>Code intelligence</h3>
 <ul>
@@ -26,7 +30,8 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
   <li><b>Go to definition</b> — Ctrl/Cmd+Click a <code>ref()</code> / <code>source()</code> to jump to the file</li>
   <li><b>Documentation on hover</b> — columns, materialization, tags, descriptions</li>
   <li><b>Annotations</b> — unresolved <code>ref()</code> / <code>source()</code> highlighted as warnings</li>
-  <li>Works in .sql, .jinja, and .jinja2 files</li>
+  <li><b>Potentially terminal columns</b> — gutter hint on model output columns that no downstream model or exposure reads</li>
+  <li>Works in .sql, .jinja, and .jinja2 files, and in dbt Charts boards (see below)</li>
 </ul>
 
 <h3>dbt Charts boards</h3>
@@ -44,14 +49,13 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
   <li>Native OS notifications when commands finish</li>
 </ul>
 
-<h3>Copy &amp; paste</h3>
+<h3>Editor actions</h3>
+<p>In the <b>YADT</b> right-click submenu:</p>
 <ul>
   <li><b>Copy for Target DB</b> (Cmd+Shift+C) — <code>ref()</code>/<code>source()</code> replaced by database.schema.table</li>
   <li><b>Paste as dbt Refs</b> (Cmd+Shift+V) — table names replaced by <code>ref()</code>/<code>source()</code> calls</li>
+  <li><b>Convert: ref ↔ Relation</b> — turn a selected <code>ref()</code>/<code>source()</code> into its relation name, or back</li>
 </ul>
-
-<h3>Docs viewer</h3>
-<p>Browse model documentation in a built-in panel — columns, descriptions, tags, and dependencies.</p>
 
 <p><em>Not affiliated with or endorsed by dbt Labs. dbt is a trademark of dbt Labs, Inc.</em></p>
     ]]></description>
