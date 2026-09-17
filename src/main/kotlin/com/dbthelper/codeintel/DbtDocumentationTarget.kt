@@ -18,43 +18,8 @@ import com.intellij.psi.PsiFile
  * PSI dispatch path that DbtPsiDocumentationTargetProvider sits on.
  */
 class DbtDocumentationTargetProvider : DocumentationTargetProvider {
-    override fun documentationTargets(file: PsiFile, offset: Int): List<DocumentationTarget> {
-        val vFile = file.virtualFile ?: return emptyList()
-        if (!isDbtCodeIntelFile(vFile)) return emptyList()
-
-        val project = file.project
-        val index = ManifestService.getInstance(project).getIndex()
-        if (index === ManifestIndex.EMPTY) return emptyList()
-
-        val text = file.text
-
-        for (ref in DbtJinjaUtils.findRefCalls(text)) {
-            if (offset in ref.nameRange) {
-                val node = index.nodes.values.firstOrNull {
-                    (it.name == ref.modelName || it.alias == ref.modelName) && it.resourceType != "test"
-                } ?: continue
-                return listOf(DbtDocumentationTarget(project, DocKind.Node(node.uniqueId), node.name))
-            }
-        }
-
-        for (src in DbtJinjaUtils.findSourceCalls(text)) {
-            if (offset in src.tableNameRange || offset in src.sourceNameRange) {
-                val source = index.sources.values.firstOrNull {
-                    it.sourceName == src.sourceName && it.name == src.tableName
-                } ?: continue
-                return listOf(DbtDocumentationTarget(project, DocKind.Source(source.uniqueId), "${source.sourceName}.${source.name}"))
-            }
-        }
-
-        for (macro in DbtJinjaUtils.findMacroCalls(text)) {
-            if (offset in macro.nameRange) {
-                val m = index.macros.values.firstOrNull { it.name == macro.macroName } ?: continue
-                return listOf(DbtDocumentationTarget(project, DocKind.Macro(m.uniqueId), m.name))
-            }
-        }
-
-        return emptyList()
-    }
+    override fun documentationTargets(file: PsiFile, offset: Int): List<DocumentationTarget> =
+        listOfNotNull(documentationTargetAt(file, offset))
 }
 
 /**
@@ -65,69 +30,31 @@ class DbtPsiDocumentationTargetProvider : PsiDocumentationTargetProvider {
     override fun documentationTarget(element: PsiElement, originalElement: PsiElement?): DocumentationTarget? {
         val context = originalElement ?: element
         val file = context.containingFile ?: return null
-        val vFile = file.virtualFile ?: return null
-        if (!isDbtCodeIntelFile(vFile)) return null
-
-        val project = file.project
-        val service = ManifestService.getInstance(project)
-        val index = service.getIndex()
-        if (index === ManifestIndex.EMPTY) return null
-
-        val text = file.text
-        val offset = context.textRange.startOffset
-
-        for (ref in DbtJinjaUtils.findRefCalls(text)) {
-            if (offset in ref.nameRange) {
-                val node = index.nodes.values.firstOrNull {
-                    (it.name == ref.modelName || it.alias == ref.modelName) && it.resourceType != "test"
-                } ?: continue
-                return DbtDocumentationTarget(project, DocKind.Node(node.uniqueId), node.name)
-            }
-        }
-
-        for (src in DbtJinjaUtils.findSourceCalls(text)) {
-            if (offset in src.tableNameRange || offset in src.sourceNameRange) {
-                val source = index.sources.values.firstOrNull {
-                    it.sourceName == src.sourceName && it.name == src.tableName
-                } ?: continue
-                return DbtDocumentationTarget(project, DocKind.Source(source.uniqueId), "${source.sourceName}.${source.name}")
-            }
-        }
-
-        for (macro in DbtJinjaUtils.findMacroCalls(text)) {
-            if (offset in macro.nameRange) {
-                val m = index.macros.values.firstOrNull { it.name == macro.macroName } ?: continue
-                return DbtDocumentationTarget(project, DocKind.Macro(m.uniqueId), m.name)
-            }
-        }
-
-        return null
+        return documentationTargetAt(file, context.textRange.startOffset)
     }
 }
 
-sealed class DocKind {
-    data class Node(val uniqueId: String) : DocKind()
-    data class Source(val uniqueId: String) : DocKind()
-    data class Macro(val uniqueId: String) : DocKind()
+private fun documentationTargetAt(file: PsiFile, offset: Int): DbtDocumentationTarget? {
+    val index = codeIntelIndex(file) ?: return null
+    val target = findCallTargetAt(file.text, offset, index) ?: return null
+    return DbtDocumentationTarget(file.project, target)
 }
 
 class DbtDocumentationTarget(
     private val project: Project,
-    private val kind: DocKind,
-    private val displayName: String
+    private val target: DbtCallTarget
 ) : DocumentationTarget {
 
     override fun createPointer(): Pointer<DbtDocumentationTarget> {
         val p = project
-        val k = kind
-        val n = displayName
+        val t = target
         return object : Pointer<DbtDocumentationTarget> {
-            override fun dereference(): DbtDocumentationTarget = DbtDocumentationTarget(p, k, n)
+            override fun dereference(): DbtDocumentationTarget = DbtDocumentationTarget(p, t)
         }
     }
 
     override fun computePresentation(): TargetPresentation =
-        TargetPresentation.builder(displayName).presentation()
+        TargetPresentation.builder(target.displayName).presentation()
 
     override fun computeDocumentationHint(): String? = renderHtml()
 
@@ -139,10 +66,11 @@ class DbtDocumentationTarget(
     private fun renderHtml(): String? {
         val index = ManifestService.getInstance(project).getIndex()
         if (index === ManifestIndex.EMPTY) return null
-        return when (kind) {
-            is DocKind.Node -> index.nodes[kind.uniqueId]?.let { DbtDocRenderer.buildNodeDoc(it, index) }
-            is DocKind.Source -> index.sources[kind.uniqueId]?.let { DbtDocRenderer.buildSourceDoc(it, index) }
-            is DocKind.Macro -> index.macros[kind.uniqueId]?.let { DbtDocRenderer.buildMacroDoc(it) }
+        // Re-read by id so the docs reflect the manifest at render time, not at hover time.
+        return when (target) {
+            is DbtCallTarget.Node -> index.nodes[target.uniqueId]?.let { DbtDocRenderer.buildNodeDoc(it, index) }
+            is DbtCallTarget.Source -> index.sources[target.uniqueId]?.let { DbtDocRenderer.buildSourceDoc(it, index) }
+            is DbtCallTarget.Macro -> index.macros[target.uniqueId]?.let { DbtDocRenderer.buildMacroDoc(it) }
         }
     }
 }

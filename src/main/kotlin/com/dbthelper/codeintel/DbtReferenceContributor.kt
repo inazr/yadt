@@ -47,18 +47,14 @@ private class DbtReferenceProvider : PsiReferenceProvider() {
         for (ref in patterns.refs) {
             rangeIfContained(ref.nameRange, elemRange)?.let { relRange ->
                 references.add(DbtPsiReference(element, relRange) { index ->
-                    index.nodes.values
-                        .firstOrNull { (it.name == ref.modelName || it.alias == ref.modelName) && it.resourceType != "test" }
-                        ?.originalFilePath
+                    index.findRefTarget(ref.modelName)?.originalFilePath
                 })
             }
         }
 
         for (src in patterns.sources) {
             val sourceLookup: (ManifestIndex) -> String? = { index ->
-                index.sources.values
-                    .firstOrNull { it.sourceName == src.sourceName && it.name == src.tableName }
-                    ?.originalFilePath
+                index.findSource(src.sourceName, src.tableName)?.originalFilePath
             }
             rangeIfContained(src.tableNameRange, elemRange)?.let { relRange ->
                 references.add(DbtPsiReference(element, relRange, sourceLookup))
@@ -71,7 +67,7 @@ private class DbtReferenceProvider : PsiReferenceProvider() {
         for (macro in patterns.macros) {
             rangeIfContained(macro.nameRange, elemRange)?.let { relRange ->
                 references.add(DbtPsiReference(element, relRange) { index ->
-                    index.macros.values.firstOrNull { it.name == macro.macroName }?.originalFilePath
+                    index.findMacro(macro.macroName)?.originalFilePath
                 })
             }
         }

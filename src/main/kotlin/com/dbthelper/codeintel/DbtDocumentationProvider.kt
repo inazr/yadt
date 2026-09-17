@@ -48,23 +48,11 @@ class DbtDocumentationProvider : AbstractDocumentationProvider() {
         val text = file.text
         val offset = originalElement.textRange.startOffset
 
-        for (src in DbtJinjaUtils.findSourceCalls(text)) {
-            if (offset in src.sourceNameRange || offset in src.tableNameRange) {
-                return index.sources.values.firstOrNull {
-                    it.sourceName == src.sourceName && it.name == src.tableName
-                }
-            }
-        }
-
-        if (offset == 0) {
-            val firstSource = DbtJinjaUtils.findSourceCalls(text).firstOrNull()
-            if (firstSource != null) {
-                return index.sources.values.firstOrNull {
-                    it.sourceName == firstSource.sourceName && it.name == firstSource.tableName
-                }
-            }
-        }
-
-        return null
+        val sourceCalls = DbtJinjaUtils.findSourceCalls(text)
+        // At offset 0 (no caret position inside a call) fall back to the file's first source call.
+        val call = sourceCalls.firstOrNull { offset in it.sourceNameRange || offset in it.tableNameRange }
+            ?: sourceCalls.firstOrNull()?.takeIf { offset == 0 }
+            ?: return null
+        return index.findSource(call.sourceName, call.tableName)
     }
 }

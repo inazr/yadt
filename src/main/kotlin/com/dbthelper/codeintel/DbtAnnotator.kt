@@ -1,7 +1,5 @@
 package com.dbthelper.codeintel
 
-import com.dbthelper.core.ManifestService
-import com.dbthelper.core.model.ManifestIndex
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.annotation.HighlightSeverity
@@ -13,21 +11,12 @@ class DbtAnnotator : Annotator {
 
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
         if (element !is PsiFile) return
-        val vFile = element.virtualFile ?: return
-        if (!isDbtCodeIntelFile(vFile)) return
-
-        val project = element.project
-        val index = ManifestService.getInstance(project).getIndex()
-        if (index === ManifestIndex.EMPTY) return
-
+        val index = codeIntelIndex(element) ?: return
         val text = element.text
 
         for (ref in DbtJinjaUtils.findRefCalls(text)) {
             val range = TextRange(ref.nameRange.first, ref.nameRange.last + 1)
-            val found = index.nodes.values.any {
-                (it.name == ref.modelName || it.alias == ref.modelName) && it.resourceType != "test"
-            }
-            if (!found) {
+            if (index.findRefTarget(ref.modelName) == null) {
                 holder.newAnnotation(HighlightSeverity.WARNING, "Unresolved ref: '${ref.modelName}'")
                     .range(range)
                     .create()
@@ -36,10 +25,7 @@ class DbtAnnotator : Annotator {
 
         for (src in DbtJinjaUtils.findSourceCalls(text)) {
             val range = TextRange(src.fullRange.first, src.fullRange.last + 1)
-            val found = index.sources.values.any {
-                it.sourceName == src.sourceName && it.name == src.tableName
-            }
-            if (!found) {
+            if (index.findSource(src.sourceName, src.tableName) == null) {
                 holder.newAnnotation(HighlightSeverity.WARNING, "Unresolved source: '${src.sourceName}.${src.tableName}'")
                     .range(range)
                     .create()
