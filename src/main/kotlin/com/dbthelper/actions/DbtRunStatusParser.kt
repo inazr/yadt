@@ -4,7 +4,7 @@ package com.dbthelper.actions
  * Stateless parser for dbt's human-readable progress lines emitted during
  * `run` / `build` / `test`. Maps a line to a (relationKey, status) pair, where
  * relationKey is the "schema.identifier" (or "database.schema.identifier") that
- * dbt prints, and status is one of the shared status strings.
+ * dbt prints, and status is the shared [RunStatus].
  *
  * Examples it recognizes (after ANSI stripping):
  *   "12:00:01  1 of 3 START sql table model analytics.dim_customers ... [RUN]"   -> running
@@ -17,7 +17,7 @@ package com.dbthelper.actions
  */
 object DbtRunStatusParser {
 
-    data class NodeStatusUpdate(val relationKey: String, val status: String)
+    data class NodeStatusUpdate(val relationKey: String, val status: RunStatus)
 
     // Strip ANSI SGR sequences (ESC [ <params> m) — same shape as DbtRunnerTab.
     private val ansiRegex = Regex("\\u001B\\[[0-9;]*m")
@@ -32,11 +32,11 @@ object DbtRunStatusParser {
         val line = ansiRegex.replace(rawLine, "")
         val phaseMatch = phaseRegex.find(line) ?: return null
         val status = when (phaseMatch.groupValues[1]) {
-            "START" -> "running"
-            "OK", "SUCCESS", "PASS" -> "success"
-            "WARN" -> "warn"
-            "ERROR", "FAIL" -> "error"
-            "SKIP" -> "skipped"
+            "START" -> RunStatus.RUNNING
+            "OK", "SUCCESS", "PASS" -> RunStatus.SUCCESS
+            "WARN" -> RunStatus.WARN
+            "ERROR", "FAIL" -> RunStatus.ERROR
+            "SKIP" -> RunStatus.SKIPPED
             else -> return null
         }
         val rest = phaseMatch.groupValues[2]

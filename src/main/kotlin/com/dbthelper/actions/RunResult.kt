@@ -11,12 +11,13 @@ enum class RunStatus(val wire: String) {
     RUNNING("running");
 
     companion object {
-        fun fromDbtStatus(raw: String): RunStatus = when (raw.lowercase()) {
+        /** A `run_results.json` status in our vocabulary, or null for one we don't color (e.g. `no-op`). */
+        fun fromDbtStatus(raw: String): RunStatus? = when (raw.lowercase().trim()) {
             "success", "pass" -> SUCCESS
             "error", "fail", "runtime error" -> ERROR
             "warn" -> WARN
             "skipped" -> SKIPPED
-            else -> ERROR
+            else -> null
         }
     }
 }
@@ -28,6 +29,13 @@ enum class RunStatus(val wire: String) {
  */
 fun isTestUniqueId(uniqueId: String): Boolean =
     uniqueId.startsWith("test.") || uniqueId.startsWith("unit_test.")
+
+/**
+ * uniqueId -> status wire value for the lineage cards. Tests color no card (their outcomes
+ * surface via the "!" triangle overlay), so a green model with a failing test stays green.
+ */
+fun nodeStatuses(results: Map<String, RunResult>): Map<String, String> =
+    results.filterKeys { !isTestUniqueId(it) }.mapValues { it.value.status.wire }
 
 data class RunResult(
     val uniqueId: String,

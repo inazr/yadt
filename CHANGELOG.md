@@ -4,6 +4,7 @@
 
 - Lineage: zooming no longer speeds up the longer the tool window is open. The wheel, zoom-button and keyboard zoom handlers were attached again on every graph render, so after N re-renders a single scroll tick or click zoomed N times; they are now attached once
 - Lineage: the hover tooltip shows the node's name again (its title line was always empty)
+- Lineage: nodes whose last run ended in a status YADT doesn't color (for example dbt's `no-op`) no longer show as failed when the tool window reloads `run_results.json`; they keep a neutral card, as they already did right after a run
 
 ## [0.6.1] - 2026-09-17
 

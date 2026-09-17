@@ -28,7 +28,7 @@ class RunResultsParser {
 
     private fun toResult(node: JsonNode): RunResult? {
         val uniqueId = node.path("unique_id").asText(null) ?: return null
-        val statusRaw = node.path("status").asText("error")
+        val status = RunStatus.fromDbtStatus(node.path("status").asText("error")) ?: return null
         val message = node.path("message").let { if (it.isNull || it.isMissingNode) null else it.asText() }
         val executionTime = node.path("execution_time").asDouble(0.0)
         val failures = node.path("failures").let { if (it.isNull || it.isMissingNode) null else it.asInt() }
@@ -39,7 +39,7 @@ class RunResultsParser {
             ?.let { runCatching { Instant.parse(it) }.getOrNull() }
         return RunResult(
             uniqueId = uniqueId,
-            status = RunStatus.fromDbtStatus(statusRaw),
+            status = status,
             message = message,
             executionTime = executionTime,
             startedAt = startedAt,

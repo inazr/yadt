@@ -8,7 +8,8 @@ import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtRunStatusParser
 import com.dbthelper.actions.DbtVerb
-import com.dbthelper.actions.RunResultsReconciler
+import com.dbthelper.actions.RunResultsParser
+import com.dbthelper.actions.nodeStatuses
 import com.dbthelper.core.DbtSelectorParser
 import com.dbthelper.core.DocsPayloadBuilder
 import com.dbthelper.core.FreshnessDetailBuilder
@@ -873,7 +874,7 @@ class LineageTab(
         if (isDisposed) return
         val update = DbtRunStatusParser.parseLine(line) ?: return
         val uniqueId = runRelationKeyIndex?.get(update.relationKey) ?: return
-        val escaped = escapeJsJson(jsonMapper.writeValueAsString(mapOf(uniqueId to update.status)))
+        val escaped = escapeJsJson(jsonMapper.writeValueAsString(mapOf(uniqueId to update.status.wire)))
         ApplicationManager.getApplication().invokeLater {
             if (!isDisposed) executeJs("setNodeStatuses('$escaped')")
         }
@@ -884,9 +885,8 @@ class LineageTab(
         if (isDisposed) return
         ApplicationManager.getApplication().executeOnPooledThread {
             if (isDisposed) return@executeOnPooledThread
-            val service = ManifestService.getInstance(project)
             val dbtRoot = DbtProjectLocator.getInstance(project).findProjectRoot() ?: return@executeOnPooledThread
-            val statuses = RunResultsReconciler.reconcile(java.io.File(dbtRoot.path), service.getIndex())
+            val statuses = nodeStatuses(RunResultsParser().parseFile(java.nio.file.Path.of(dbtRoot.path, "target", "run_results.json")))
             runRelationKeyIndex = null
             val json = jsonMapper.writeValueAsString(statuses)
             val escaped = escapeJsJson(json)

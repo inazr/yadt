@@ -49,4 +49,23 @@ class RunResultsParserTest {
         val parsed = RunResultsParser().parseString("""{ "metadata": {} }""")
         assertTrue(parsed.isEmpty())
     }
+
+    @Test
+    fun `statuses outside our vocabulary are dropped and tests color no card`() {
+        val json = """
+            {
+              "results": [
+                { "unique_id": "model.proj.a", "status": "success" },
+                { "unique_id": "model.proj.b", "status": "no-op" },
+                { "unique_id": "test.proj.t1", "status": "fail" },
+                { "unique_id": "unit_test.proj.u1", "status": "pass" }
+              ]
+            }
+        """.trimIndent()
+
+        val parsed = RunResultsParser().parseString(json)
+
+        assertEquals(setOf("model.proj.a", "test.proj.t1", "unit_test.proj.u1"), parsed.keys)
+        assertEquals(mapOf("model.proj.a" to "success"), nodeStatuses(parsed))
+    }
 }
