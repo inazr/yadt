@@ -14,7 +14,7 @@ class DbtAnnotator : Annotator {
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
         if (element !is PsiFile) return
         val vFile = element.virtualFile ?: return
-        if (!isDbtTemplateFile(vFile.name)) return
+        if (!isDbtCodeIntelFile(vFile)) return
 
         val project = element.project
         val index = ManifestService.getInstance(project).getIndex()

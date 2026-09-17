@@ -1,5 +1,6 @@
 package com.dbthelper.codeintel
 
+import com.dbthelper.charts.DbtChartsBoardLocator
 import com.dbthelper.core.ManifestService
 import com.dbthelper.core.model.ManifestIndex
 import com.intellij.codeInsight.completion.*
@@ -19,7 +20,7 @@ class DbtCompletionContributor : CompletionContributor() {
             ) {
                 val file = parameters.originalFile
                 val vFile = file.virtualFile ?: return
-                if (!isDbtTemplateFile(vFile.name)) return
+                if (!isDbtCodeIntelFile(vFile)) return
 
                 val project = file.project
                 val index = ManifestService.getInstance(project).getIndex()
@@ -28,7 +29,7 @@ class DbtCompletionContributor : CompletionContributor() {
                 val offset = parameters.offset
                 val textBefore = file.text.substring(0, offset)
 
-                when (val ctx = DbtJinjaUtils.detectCompletionContext(textBefore)) {
+                when (val ctx = DbtJinjaUtils.detectCompletionContext(textBefore, allowMacros = !DbtChartsBoardLocator.isBoardFile(vFile))) {
                     is DbtJinjaUtils.CompletionContext.Ref -> completeRef(ctx.prefix, index, result)
                     is DbtJinjaUtils.CompletionContext.SourceName -> completeSourceName(ctx.prefix, index, result)
                     is DbtJinjaUtils.CompletionContext.SourceTable -> completeSourceTable(ctx.sourceName, ctx.prefix, index, result)

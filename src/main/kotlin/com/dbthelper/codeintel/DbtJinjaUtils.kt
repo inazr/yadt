@@ -1,9 +1,16 @@
 package com.dbthelper.codeintel
 
+import com.dbthelper.charts.DbtChartsBoardLocator
+import com.intellij.openapi.vfs.VirtualFile
+
 /** Checks if a file is a dbt template file that can contain Jinja ref/source calls. */
 fun isDbtTemplateFile(fileName: String): Boolean {
     return fileName.endsWith(".sql") || fileName.endsWith(".jinja") || fileName.endsWith(".jinja2")
 }
+
+/** Gate for ref()/source() code intelligence: dbt template files plus dbt Charts boards, whose queries use them. */
+fun isDbtCodeIntelFile(file: VirtualFile): Boolean =
+    isDbtTemplateFile(file.name) || DbtChartsBoardLocator.isBoardFile(file)
 
 object DbtJinjaUtils {
 
@@ -63,7 +70,7 @@ object DbtJinjaUtils {
     private val CTX_SOURCE_FIRST = Regex("""source\s*\(\s*['"]([^'"]*)$""")
     private val CTX_MACRO = Regex("""\{\{[-\s]*(\w*)$""")
 
-    fun detectCompletionContext(textBeforeCursor: String): CompletionContext? {
+    fun detectCompletionContext(textBeforeCursor: String, allowMacros: Boolean = true): CompletionContext? {
         CTX_REF.find(textBeforeCursor)?.let {
             return CompletionContext.Ref(it.groupValues[1])
         }
@@ -73,8 +80,10 @@ object DbtJinjaUtils {
         CTX_SOURCE_FIRST.find(textBeforeCursor)?.let {
             return CompletionContext.SourceName(it.groupValues[1])
         }
-        CTX_MACRO.find(textBeforeCursor)?.let {
-            return CompletionContext.Macro(it.groupValues[1])
+        if (allowMacros) {
+            CTX_MACRO.find(textBeforeCursor)?.let {
+                return CompletionContext.Macro(it.groupValues[1])
+            }
         }
         return null
     }

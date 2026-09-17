@@ -26,7 +26,7 @@ private class DbtReferenceProvider : PsiReferenceProvider() {
     override fun getReferencesByElement(element: PsiElement, context: ProcessingContext): Array<PsiReference> {
         val file = element.containingFile ?: return PsiReference.EMPTY_ARRAY
         val vFile = file.virtualFile ?: return PsiReference.EMPTY_ARRAY
-        if (!isDbtTemplateFile(vFile.name)) return PsiReference.EMPTY_ARRAY
+        if (!isDbtCodeIntelFile(vFile)) return PsiReference.EMPTY_ARRAY
 
         val patterns = CachedValuesManager.getCachedValue(file) {
             val text = file.text

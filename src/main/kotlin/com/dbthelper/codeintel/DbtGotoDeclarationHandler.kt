@@ -17,7 +17,7 @@ class DbtGotoDeclarationHandler : GotoDeclarationHandler {
         val element = sourceElement ?: return null
         val file = element.containingFile ?: return null
         val vFile = file.virtualFile ?: return null
-        if (!isDbtTemplateFile(vFile.name)) return null
+        if (!isDbtCodeIntelFile(vFile)) return null
 
         // Limit to reasonably-sized elements to avoid underlining the whole file
         if (element.textLength > 300) return null

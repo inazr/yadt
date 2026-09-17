@@ -20,7 +20,7 @@ import com.intellij.psi.PsiFile
 class DbtDocumentationTargetProvider : DocumentationTargetProvider {
     override fun documentationTargets(file: PsiFile, offset: Int): List<DocumentationTarget> {
         val vFile = file.virtualFile ?: return emptyList()
-        if (!isDbtTemplateFile(vFile.name)) return emptyList()
+        if (!isDbtCodeIntelFile(vFile)) return emptyList()
 
         val project = file.project
         val index = ManifestService.getInstance(project).getIndex()
@@ -66,7 +66,7 @@ class DbtPsiDocumentationTargetProvider : PsiDocumentationTargetProvider {
         val context = originalElement ?: element
         val file = context.containingFile ?: return null
         val vFile = file.virtualFile ?: return null
-        if (!isDbtTemplateFile(vFile.name)) return null
+        if (!isDbtCodeIntelFile(vFile)) return null
 
         val project = file.project
         val service = ManifestService.getInstance(project)
