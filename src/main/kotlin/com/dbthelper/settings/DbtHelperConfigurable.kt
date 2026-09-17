@@ -4,6 +4,7 @@ import com.dbthelper.core.ProfilesParser
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.ui.dsl.builder.*
+import kotlin.reflect.KMutableProperty0
 
 class DbtHelperConfigurable(private val project: Project) : BoundConfigurable("YADT") {
 
@@ -77,69 +78,24 @@ class DbtHelperConfigurable(private val project: Project) : BoundConfigurable("Y
                     .comment("Line style for edges. Try taxi or round-taxi for orthogonal connectors")
             }
             row("Layout direction:") {
-                val directions = listOf("Left \u2192 Right", "Top \u2192 Bottom", "Right \u2192 Left", "Bottom \u2192 Top")
-                comboBox(directions)
-                    .bindItem(
-                        { when (settings.state.layoutDirection) {
-                            "LR" -> "Left \u2192 Right"
-                            "TB" -> "Top \u2192 Bottom"
-                            "RL" -> "Right \u2192 Left"
-                            "BT" -> "Bottom \u2192 Top"
-                            else -> "Left \u2192 Right"
-                        }},
-                        { settings.state.layoutDirection = when (it) {
-                            "Top \u2192 Bottom" -> "TB"
-                            "Right \u2192 Left" -> "RL"
-                            "Bottom \u2192 Top" -> "BT"
-                            else -> "LR"
-                        }}
-                    )
+                labeledComboBox(
+                    listOf("Left \u2192 Right" to "LR", "Top \u2192 Bottom" to "TB", "Right \u2192 Left" to "RL", "Bottom \u2192 Top" to "BT"),
+                    settings.state::layoutDirection
+                )
             }
             row("Node color:") {
-                val nodeColorModes = listOf("Resource type", "Schema name", "Status")
-                comboBox(nodeColorModes)
-                    .bindItem(
-                        {
-                            when (settings.state.nodeColorMode) {
-                                "schema" -> "Schema name"
-                                "status" -> "Status"
-                                else -> "Resource type"
-                            }
-                        },
-                        {
-                            settings.state.nodeColorMode = when (it) {
-                                "Schema name" -> "schema"
-                                "Status" -> "status"
-                                else -> "resource"
-                            }
-                        }
-                    )
-                    .comment("How lineage node colors are derived. \"Status\" colors nodes by their last dbt run result.")
+                labeledComboBox(
+                    listOf("Resource type" to "resource", "Schema name" to "schema", "Status" to "status"),
+                    settings.state::nodeColorMode
+                ).comment("How lineage node colors are derived. \"Status\" colors nodes by their last dbt run result.")
             }
             row("Cluster mode:") {
-                val clusterModes = listOf("None", "Schema", "Folder", "Tag")
-                comboBox(clusterModes)
-                    .bindItem(
-                        {
-                            when (settings.state.defaultClusterMode) {
-                                "schema" -> "Schema"
-                                "folder" -> "Folder"
-                                "tag" -> "Tag"
-                                else -> "None"
-                            }
-                        },
-                        {
-                            settings.state.defaultClusterMode = when (it) {
-                                "Schema" -> "schema"
-                                "Folder" -> "folder"
-                                "Tag" -> "tag"
-                                else -> "none"
-                            }
-                        }
-                    )
-                    .comment("Group lineage nodes into compound clusters by schema, folder, or tag.")
+                labeledComboBox(
+                    listOf("None" to "none", "Schema" to "schema", "Folder" to "folder", "Tag" to "tag"),
+                    settings.state::defaultClusterMode
+                ).comment("Group lineage nodes into compound clusters by schema, folder, or tag.")
             }
-}
+        }
 
         group("Preview") {
             row("Row limit:") {
@@ -189,4 +145,14 @@ class DbtHelperConfigurable(private val project: Project) : BoundConfigurable("Y
             }
         }
     }
+
+    /**
+     * A combo box showing the labels of [options] (label to stored value) and bound to [property].
+     * A stored value that matches no option shows, and saves back as, the first option.
+     */
+    private fun Row.labeledComboBox(options: List<Pair<String, String>>, property: KMutableProperty0<String>) =
+        comboBox(options.map { it.first }).bindItem(
+            { options.firstOrNull { it.second == property.get() }?.first ?: options.first().first },
+            { label -> property.set(options.firstOrNull { it.first == label }?.second ?: options.first().second) }
+        )
 }

@@ -1,6 +1,7 @@
 package com.dbthelper.toolwindow
 
 import com.dbthelper.core.YadtNotifier
+import com.dbthelper.actions.CompiledSql
 import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtVerb
@@ -228,13 +229,7 @@ class DbtMainPanel(
         actionBar.setRunning(false)
     }
 
-    /**
-     * After a successful `dbt compile`, read the freshly written compiled SQL
-     * from target/compiled/<project>/… and put it on the clipboard. For a
-     * selector that resolves to a single model, copy that model; otherwise
-     * concatenate every model that has a compiled file, each under a
-     * `-- <name>` header.
-     */
+    /** After a successful `dbt compile`, put the freshly compiled SQL on the clipboard. */
     private fun copyCompiledToClipboard(spec: DbtCommandSpec) {
         val root = DbtProjectLocator.getInstance(project).findProjectRoot()
         val projectName = ProfilesParser.getInstance(project).getProjectName()
@@ -243,42 +238,13 @@ class DbtMainPanel(
             return
         }
         val compiledDir = File(root.path, "target/compiled/$projectName")
-        val index = ManifestService.getInstance(project).getIndex()
-        val baseName = DbtSelectorParser.parse(spec.selector)?.modelName
-        val singleNode = baseName?.let { name ->
-            index.nodes.values
-                .filter { it.resourceType == "model" && it.name == name }
-                .singleOrNull()
-        }
-
-        val sql: String?
-        val message: String
-        if (singleNode != null) {
-            val file = File(compiledDir, singleNode.originalFilePath)
-            sql = if (file.isFile) file.readText() else null
-            message = "Copied compiled SQL for ${singleNode.name} to clipboard"
-        } else {
-            val blocks = StringBuilder()
-            var count = 0
-            index.nodes.values
-                .filter { it.resourceType == "model" }
-                .forEach { node ->
-                    val file = File(compiledDir, node.originalFilePath)
-                    if (file.isFile) {
-                        blocks.append("-- ${node.name}\n").append(file.readText().trim()).append("\n\n")
-                        count++
-                    }
-                }
-            sql = if (count > 0) blocks.toString() else null
-            message = "Copied compiled SQL for $count models to clipboard"
-        }
-
-        if (sql == null) {
+        val compiled = CompiledSql.collect(ManifestService.getInstance(project).getIndex(), compiledDir, spec.selector)
+        if (compiled == null) {
             YadtNotifier.notifyWithSystem(project, "Compile succeeded but no compiled SQL file was found", NotificationType.WARNING)
             return
         }
-        CopyPasteManager.getInstance().setContents(StringSelection(sql))
-        YadtNotifier.notifyWithSystem(project, message, NotificationType.INFORMATION)
+        CopyPasteManager.getInstance().setContents(StringSelection(compiled.sql))
+        YadtNotifier.notifyWithSystem(project, "Copied compiled SQL for ${compiled.label} to clipboard", NotificationType.INFORMATION)
     }
 
     override fun dispose() {}
