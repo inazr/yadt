@@ -15,9 +15,13 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 - **Selector-driven graph** — type a dbt selector (`tag:`, `path:`, `source:`, `+model`, `model+`, globs) to drive what the graph shows; resolved live or via `dbt ls`.
 - **Docs sidebar** — columns, tests, SQL, and metadata for the selected model, side-by-side with the graph.
 - **Code intelligence** — autocomplete and go-to-definition for `ref()`, `source()`, and `macro()`; hover for column info; warnings on unresolved references. Works in `.sql` and Jinja files, and in dbt Charts boards.
+- **Potentially terminal columns** — a gutter icon in the `.sql` model file marks output columns that no downstream model or exposure reads. It's a heuristic over direct children and exposures; columns it can't pin to a line collapse into a single file-level marker.
 - **dbt Charts boards** — completion, hover docs, and structural errors for [dbt Charts](https://dbtcharts.com) board YAML, driven by the schema of your installed `dct`; plus `ref()` / `source()` intelligence inside board queries. See [dbt Charts boards](#dbt-charts-boards).
 - **Runner** — run, test, compile, preview, and regenerate docs without leaving the IDE. Target selector and live output log.
-- **Copy & paste helpers** — copy SQL with refs resolved to `db.schema.table`, or paste SQL with table names converted back into `ref()` / `source()` calls.
+- **Editor actions** — in the **YADT** submenu of the editor's right-click menu (and under **Edit**):
+  - **Copy for Target DB** — copy SQL with refs resolved to `db.schema.table`
+  - **Paste as dbt Refs** — paste SQL with table names converted back into `ref()` / `source()` calls
+  - **Convert: ref ↔ Relation** — select a `{{ ref() }}` / `{{ source() }}` or a `database.schema.table` name and convert it in place to the other form; the direction is detected from the selection
 
 ---
 
@@ -95,8 +99,11 @@ Rendering boards (`dct serve` / `dct render`) and `dct validate` are not part of
 |--------|-------|---------------|
 | Copy for Target DB | `Cmd+Shift+C` | `Ctrl+Shift+C` |
 | Paste as dbt Refs | `Cmd+Shift+V` | `Ctrl+Shift+V` |
+| Convert: ref ↔ Relation | _unbound_ | _unbound_ |
 | dbt: Run / Stop | _unbound_ | _unbound_ |
 | dbt: Clear Output | _unbound_ | _unbound_ |
+
+The first three actions live in the editor's right-click **YADT** submenu; `Convert: ref ↔ Relation` has no default shortcut — assign one under **Settings → Keymap**.
 
 `dbt: Run / Stop` and `dbt: Clear Output` mirror the Runner panel's **[RUN]** and **Clear** buttons (same dbt pipeline, same lineage overlays). They ship without a default shortcut — assign one under **Settings → Keymap** (search for "dbt:"). Both are also in the **Tools** menu.
 
