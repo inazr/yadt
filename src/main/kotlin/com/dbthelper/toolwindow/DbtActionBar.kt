@@ -13,7 +13,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.CheckBoxList
-import com.intellij.ui.SimpleListCellRenderer
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
@@ -73,7 +73,7 @@ class DbtActionBar(
     }
 
     private val verbCombo = JComboBox(DROPDOWN_VERBS.toTypedArray()).apply {
-        renderer = SimpleListCellRenderer.create("") { it.display }
+        renderer = textListCellRenderer { it?.display }
         toolTipText = "dbt command to run"
     }
 

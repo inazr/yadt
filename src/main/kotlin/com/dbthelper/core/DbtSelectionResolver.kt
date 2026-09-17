@@ -3,7 +3,7 @@ package com.dbthelper.core
 import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.core.model.ManifestIndex
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.util.Computable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import java.io.File
@@ -34,9 +34,9 @@ class DbtSelectionResolver(private val project: Project?) {
         Thread {
             try {
                 val dbt = DbtCommandRunner(proj).findDbtExecutable()
-                val root = ReadAction.compute<String?, RuntimeException> {
+                val root = ApplicationManager.getApplication().runReadAction(Computable {
                     DbtProjectLocator.getInstance(proj).findProjectRoot()?.path
-                } ?: return@Thread
+                }) ?: return@Thread
                 val pb = ProcessBuilder(
                     dbt, "ls", "--quiet",
                     "--select", selector,

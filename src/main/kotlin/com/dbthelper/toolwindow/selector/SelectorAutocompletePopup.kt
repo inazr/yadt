@@ -2,7 +2,7 @@ package com.dbthelper.toolwindow.selector
 
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.ui.SimpleListCellRenderer
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
@@ -33,7 +33,7 @@ class SelectorAutocompletePopup(
     private val model = DefaultListModel<SelectorSuggestion>()
     private val list = JBList(model).apply {
         visibleRowCount = MAX_VISIBLE_ROWS
-        cellRenderer = SimpleListCellRenderer.create("") { it.text }
+        cellRenderer = textListCellRenderer { it?.text }
     }
     private var popup: JBPopup? = null
     private var accepting = false

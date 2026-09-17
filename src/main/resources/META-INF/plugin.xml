@@ -84,12 +84,7 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
     <resource-bundle>messages.DbtHelperBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Project Services -->
-        <projectService serviceImplementation="com.dbthelper.settings.DbtHelperSettings"/>
-        <projectService serviceImplementation="com.dbthelper.core.ManifestService"/>
-        <projectService serviceImplementation="com.dbthelper.core.ProfilesParser"/>
-        <projectService serviceImplementation="com.dbthelper.core.DbtRunState"/>
-        <projectService serviceImplementation="com.dbthelper.listeners.RunResultsWatcher"/>
+        <!-- Project services are light services (@Service) and must not be registered here. -->
         <postStartupActivity implementation="com.dbthelper.listeners.RunResultsWatcherStarter"/>
         <postStartupActivity implementation="com.dbthelper.charts.DbtChartsSchemaStarter"/>
 

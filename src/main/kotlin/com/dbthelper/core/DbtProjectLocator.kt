@@ -3,7 +3,8 @@ package com.dbthelper.core
 import com.intellij.openapi.components.service
 import com.intellij.openapi.components.Service
 import com.dbthelper.settings.DbtHelperSettings
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.util.Computable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
@@ -20,11 +21,11 @@ class DbtProjectLocator(private val project: Project) {
     fun findAllDbtRoots(): List<VirtualFile> {
         if (cachedDbtRoots.isNotEmpty()) return cachedDbtRoots
 
-        val roots = ReadAction.compute<List<VirtualFile>, Throwable> {
+        val roots = ApplicationManager.getApplication().runReadAction(Computable {
             val scope = GlobalSearchScope.projectScope(project)
             val files = FilenameIndex.getVirtualFilesByName("dbt_project.yml", scope)
             files.mapNotNull { it.parent }.sortedBy { it.path.length }
-        }
+        })
         cachedDbtRoots = roots
         return cachedDbtRoots
     }
