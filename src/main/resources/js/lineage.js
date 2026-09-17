@@ -316,29 +316,38 @@
         test: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3.5 8.5l3 3 6-7"/></svg>'
     };
 
+    // Materializations that persist a relation (drawn with the table icon / table color).
+    function isTableMaterialization(node) {
+        var mat = (node.materialization || 'view').toLowerCase();
+        return mat === 'table' || mat === 'incremental' || mat === 'materialized_view';
+    }
+
     function pickIconKey(node) {
         if (node.resourceType === 'source') return 'source';
         if (node.resourceType === 'seed') return 'seed';
         if (node.resourceType === 'snapshot') return 'snapshot';
         if (node.resourceType === 'exposure') return 'exposure';
         // model: pick by materialization
-        var mat = (node.materialization || 'view').toLowerCase();
-        if (mat === 'table' || mat === 'incremental' || mat === 'materialized_view') return 'table';
-        return 'view';
+        return isTableMaterialization(node) ? 'table' : 'view';
+    }
+
+    // Bar color for a node's current run status; unknown/absent statuses are neutral.
+    function statusBarColor(id) {
+        var st = nodeStatus[id];
+        return (st && STATUS_BAR_COLORS[st]) || NEUTRAL_BAR_COLOR;
     }
 
     function pickBarColor(node, colorMode) {
-        if (colorMode === 'status') {
-            var st = nodeStatus[node.id];
-            return (st && STATUS_BAR_COLORS[st]) || NEUTRAL_BAR_COLOR;
-        }
+        if (colorMode === 'status') return statusBarColor(node.id);
         if (colorMode === 'schema') {
             return node.schema ? schemaColor(node.schema) : NEUTRAL_BAR_COLOR;
         }
         if (node.resourceType !== 'model') return NODE_BAR_COLORS[node.resourceType] || '#888';
-        var mat = (node.materialization || 'view').toLowerCase();
-        if (mat === 'table' || mat === 'incremental' || mat === 'materialized_view') return NODE_BAR_COLORS.model_table;
-        return NODE_BAR_COLORS.model_view;
+        return isTableMaterialization(node) ? NODE_BAR_COLORS.model_table : NODE_BAR_COLORS.model_view;
+    }
+
+    function parseArg(jsonOrValue) {
+        return typeof jsonOrValue === 'string' ? JSON.parse(jsonOrValue) : jsonOrValue;
     }
 
     let cy = null;
@@ -425,26 +434,35 @@
         hoverActive = false;
     }
 
+    // Mark exactly the cards whose id is in `ids` (anything with has()) as selected.
+    function selectCards(ids) {
+        Object.keys(nodeCards).forEach(function (cid) {
+            nodeCards[cid].classList.toggle('selected', ids.has(cid));
+        });
+    }
+
     function toggleMultiSelect(id) {
         if (selectedIds.has(id)) selectedIds.delete(id);
         else selectedIds.add(id);
-        Object.keys(nodeCards).forEach(function (cid) {
-            var c = nodeCards[cid];
-            if (c) c.classList.toggle('selected', selectedIds.has(cid));
-        });
+        selectCards(selectedIds);
         notifyMultiSelectChanged();
     }
     function clearMultiSelect() {
         if (selectedIds.size === 0) return;
         selectedIds.clear();
-        Object.keys(nodeCards).forEach(function (cid) {
-            var c = nodeCards[cid];
-            if (c) c.classList.remove('selected');
-        });
+        selectCards(selectedIds);
         notifyMultiSelectChanged();
     }
     function notifyMultiSelectChanged() {
         sendToKotlin('multiSelectChanged', { count: selectedIds.size });
+    }
+
+    // Dim or undim a graph element together with its HTML card (edges have no card).
+    function setDimmed(el, on) {
+        if (on) el.addClass('dimmed');
+        else el.removeClass('dimmed');
+        var card = nodeCards[el.id()];
+        if (card) card.classList.toggle('dimmed', on);
     }
 
     function dimToNeighborhood(nodeId) {
@@ -453,21 +471,13 @@
         if (!center.length) return;
         var keep = center.union(center.predecessors()).union(center.successors());
         cy.elements().forEach(function (el) {
-            var card = nodeCards[el.id()];
-            if (keep.contains(el)) {
-                el.removeClass('dimmed');
-                if (card) card.classList.remove('dimmed');
-            } else {
-                el.addClass('dimmed');
-                if (card) card.classList.add('dimmed');
-            }
+            setDimmed(el, !keep.contains(el));
         });
         // Highlight the clicked card
-        Object.values(nodeCards).forEach(function (c) { c.classList.remove('selected'); });
-        var clickedCard = nodeCards[nodeId];
-        if (clickedCard) clickedCard.classList.add('selected');
+        selectCards(new Set([nodeId]));
     }
 
+    // Also the search box's reset (window.resetFilter): both just undim everything.
     function clearNeighborhoodDim() {
         if (!cy) return;
         cy.elements().removeClass('dimmed');
@@ -480,6 +490,15 @@
         clearMultiSelect();
     });
 
+    // A stub asks Kotlin to reveal the hidden hops behind it; any other node is focused.
+    function activateNode(data) {
+        if (data.resourceType === 'stub') {
+            sendToKotlin('expandRequest', { direction: data.stubDirection, boundaryNodeId: data.boundaryNodeId });
+        } else {
+            sendToKotlin('nodeClick', { nodeId: data.id });
+        }
+    }
+
     window.addEventListener('mouseup', function () {
         if (!activeDrag) return;
         var d = activeDrag;
@@ -487,8 +506,9 @@
         if (d.card) d.card.style.cursor = '';
         if (d.moved) return;
 
+        // A stub expands on the first click; it has no preview to wait for.
         if (d.data.resourceType === 'stub') {
-            sendToKotlin('expandRequest', { direction: d.data.stubDirection, boundaryNodeId: d.data.boundaryNodeId });
+            activateNode(d.data);
             return;
         }
 
@@ -499,7 +519,7 @@
             pendingClickTimer = null;
             lastClickedId = null;
             clearNeighborhoodDim();
-            sendToKotlin('nodeClick', { nodeId: d.data.id, resourceType: d.data.resourceType });
+            activateNode(d.data);
             return;
         }
 
@@ -570,18 +590,24 @@
         var newHeight = cardHeightFor(data);
         node.data('h', newHeight);
 
-        var elkOpts = Object.assign({}, ELK_LAYOUT_OPTIONS, {
-            'elk.direction': elkDirectionFor(currentLayoutDir)
+        runElkLayout(currentLayoutDir).then(function () {
+            // Anchor: pan by difference so the toggled node stays under the cursor
+            var newRendered = node.renderedPosition();
+            var pan = cy.pan();
+            cy.pan({ x: pan.x + (oldRendered.x - newRendered.x), y: pan.y + (oldRendered.y - newRendered.y) });
+            buildNodeCards();
         });
-        cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(currentLayoutDir) })
+    }
+
+    // ELK layout of the live graph, then the alphabetical column pass on its result.
+    function runElkLayout(layoutDir) {
+        var elkOpts = Object.assign({}, ELK_LAYOUT_OPTIONS, {
+            'elk.direction': elkDirectionFor(layoutDir)
+        });
+        return cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(layoutDir) })
             .run()
             .promiseOn('layoutstop').then(function () {
-                alphabetizeInterchangeableGroups(cy, currentLayoutDir, CROSSING_TOLERANCE, CROSSING_SLACK);
-                // Anchor: pan by difference so the toggled node stays under the cursor
-                var newRendered = node.renderedPosition();
-                var pan = cy.pan();
-                cy.pan({ x: pan.x + (oldRendered.x - newRendered.x), y: pan.y + (oldRendered.y - newRendered.y) });
-                buildNodeCards();
+                alphabetizeInterchangeableGroups(cy, layoutDir, CROSSING_TOLERANCE, CROSSING_SLACK);
             });
     }
 
@@ -597,148 +623,161 @@
             var data = node.data();
             if (data.isParent) return;
 
-            var card = document.createElement('div');
-            card.className = 'card-node';
-            card.dataset.id = data.id;
-
-            if (data.resourceType === 'stub') {
-                card.classList.add('stub');
-                var name = document.createElement('div');
-                name.className = 'card-name';
-                name.textContent = data.name || '+ more';
-                card.appendChild(name);
-            } else {
-                card.style.setProperty('--card-bar-color', data.barColor);
-                if (currentColorMode === 'status' && nodeStatus[data.id] === 'running') {
-                    card.classList.add('running');
-                }
-
-                // Wrap main row content
-                var mainRow = document.createElement('div');
-                mainRow.className = 'card-main-row';
-
-                var bar = document.createElement('div');
-                bar.className = 'card-bar';
-                card.appendChild(bar);
-
-                var icon = document.createElement('div');
-                icon.className = 'card-icon';
-                icon.innerHTML = ICONS[data.iconKey] || ICONS.view;
-                mainRow.appendChild(icon);
-
-                var text = document.createElement('div');
-                text.className = 'card-text';
-                var name2 = document.createElement('div');
-                name2.className = 'card-name';
-                name2.textContent = data.name;
-                text.appendChild(name2);
-                if (data.resourceType === 'source' && data.freshness && data.freshness.status !== 'pass') {
-                    var fresh = document.createElement('div');
-                    fresh.className = 'card-freshness fresh-' + data.freshness.status;
-                    fresh.textContent = data.freshness.status === 'error' ? '⬤' : '●';
-                    fresh.title = 'Freshness: ' + data.freshness.status + (data.freshness.message ? ' — ' + data.freshness.message : '');
-                    fresh.addEventListener('click', function (e) {
-                        e.stopPropagation();
-                        sendToKotlin('openFreshnessDetail', { nodeId: data.id });
-                    });
-                    text.appendChild(fresh);
-                }
-                mainRow.appendChild(text);
-
-                var badge = document.createElement('div');
-                badge.className = 'card-failure-badge';
-                card.appendChild(badge);
-                card.classList.add('no-failure-badge');
-
-                var canExpand = !!(data.columns && data.columns.length) || data.resourceType === 'model' || data.resourceType === 'source' || data.resourceType === 'seed' || data.resourceType === 'snapshot';
-                if (canExpand) {
-                    var toggle = document.createElement('div');
-                    toggle.className = 'card-toggle';
-                    toggle.textContent = expandedIds.has(data.id) ? '▾' : '▸';
-                    toggle.addEventListener('mousedown', function (ev) { ev.stopPropagation(); });
-                    toggle.addEventListener('click', function (ev) {
-                        ev.stopPropagation();
-                        toggleExpand(data.id);
-                    });
-                    mainRow.appendChild(toggle);
-                }
-
-                card.appendChild(mainRow);
-
-                if (canExpand && expandedIds.has(data.id)) {
-                    renderColumnsInto(card, data);
-                }
-            }
-
-            if (data.isCurrent) card.classList.add('selected');
-
-            // Drag + click handling — actual drag/up listeners are global (see below).
-            card.addEventListener('mousedown', function (e) {
-                if (e.button !== 0) {
-                    // right-click (button 2) → context menu handled by separate listener
-                    return;
-                }
-                e.preventDefault();
-                e.stopPropagation();
-                hideTooltip();
-                if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                    // Toggle multi-select; do NOT begin drag
-                    toggleMultiSelect(data.id);
-                    return;
-                }
-                activeDrag = { id: data.id, data: data, card: card, startX: e.clientX, startY: e.clientY, moved: false };
-                card.style.cursor = 'grabbing';
-            });
-            card.addEventListener('mouseenter', function (e) {
-                if (activeDrag) return;
-                applyHoverHighlight(data.id);
-                showTooltip({ x: e.clientX, y: e.clientY }, data);
-            });
-            card.addEventListener('mousemove', function (e) {
-                if (activeDrag) return;
-                moveTooltip({ x: e.clientX, y: e.clientY });
-            });
-            card.addEventListener('mouseleave', function () {
-                clearHoverHighlight();
-                hideTooltip();
-            });
-
+            var card = createCardElement(data);
+            wireCardEvents(card, data);
             overlayEl.appendChild(card);
-            card.addEventListener('contextmenu', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                var ids;
-                if (selectedIds.size > 0 && selectedIds.has(data.id)) {
-                    ids = Array.from(selectedIds);
-                } else {
-                    // Right-click on an unselected card: act on that card only
-                    clearMultiSelect();
-                    selectedIds.add(data.id);
-                    var c = nodeCards[data.id];
-                    if (c) c.classList.add('selected');
-                    ids = [data.id];
-                }
-                var types = ids.map(function (id) {
-                    var n = cy.getElementById(id);
-                    return n.length ? n.data('resourceType') : null;
-                });
-                var names = ids.map(function (id) {
-                    var n = cy.getElementById(id);
-                    return n.length ? n.data('name') : id;
-                });
-                sendToKotlin('contextMenuRequest', {
-                    nodeIds: ids,
-                    names: names,
-                    resourceTypes: types,
-                    // clientX/Y are viewport-relative; since JCEF fills its Swing component,
-                    // they map 1:1 to coordinates inside browser.component on the Kotlin side.
-                    clientX: Math.round(e.clientX),
-                    clientY: Math.round(e.clientY)
-                });
-            });
             nodeCards[data.id] = card;
         });
         syncNodeCards();
+    }
+
+    // The card's DOM (stub or full card). Only its inner controls get listeners here;
+    // the card-level interaction is wired by wireCardEvents.
+    function createCardElement(data) {
+        var card = document.createElement('div');
+        card.className = 'card-node';
+        card.dataset.id = data.id;
+
+        if (data.resourceType === 'stub') {
+            card.classList.add('stub');
+            var name = document.createElement('div');
+            name.className = 'card-name';
+            name.textContent = data.name || '+ more';
+            card.appendChild(name);
+        } else {
+            card.style.setProperty('--card-bar-color', data.barColor);
+            if (currentColorMode === 'status' && nodeStatus[data.id] === 'running') {
+                card.classList.add('running');
+            }
+
+            // Wrap main row content
+            var mainRow = document.createElement('div');
+            mainRow.className = 'card-main-row';
+
+            var bar = document.createElement('div');
+            bar.className = 'card-bar';
+            card.appendChild(bar);
+
+            var icon = document.createElement('div');
+            icon.className = 'card-icon';
+            icon.innerHTML = ICONS[data.iconKey] || ICONS.view;
+            mainRow.appendChild(icon);
+
+            var text = document.createElement('div');
+            text.className = 'card-text';
+            var name2 = document.createElement('div');
+            name2.className = 'card-name';
+            name2.textContent = data.name;
+            text.appendChild(name2);
+            if (data.resourceType === 'source' && data.freshness && data.freshness.status !== 'pass') {
+                var fresh = document.createElement('div');
+                fresh.className = 'card-freshness fresh-' + data.freshness.status;
+                fresh.textContent = data.freshness.status === 'error' ? '⬤' : '●';
+                fresh.title = 'Freshness: ' + data.freshness.status + (data.freshness.message ? ' — ' + data.freshness.message : '');
+                fresh.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    sendToKotlin('openFreshnessDetail', { nodeId: data.id });
+                });
+                text.appendChild(fresh);
+            }
+            mainRow.appendChild(text);
+
+            var badge = document.createElement('div');
+            badge.className = 'card-failure-badge';
+            card.appendChild(badge);
+            card.classList.add('no-failure-badge');
+
+            var canExpand = !!(data.columns && data.columns.length) || data.resourceType === 'model' || data.resourceType === 'source' || data.resourceType === 'seed' || data.resourceType === 'snapshot';
+            if (canExpand) {
+                var toggle = document.createElement('div');
+                toggle.className = 'card-toggle';
+                toggle.textContent = expandedIds.has(data.id) ? '▾' : '▸';
+                toggle.addEventListener('mousedown', function (ev) { ev.stopPropagation(); });
+                toggle.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    toggleExpand(data.id);
+                });
+                mainRow.appendChild(toggle);
+            }
+
+            card.appendChild(mainRow);
+
+            if (canExpand && expandedIds.has(data.id)) {
+                renderColumnsInto(card, data);
+            }
+        }
+
+        if (data.isCurrent) card.classList.add('selected');
+        return card;
+    }
+
+    function wireCardEvents(card, data) {
+        // Drag + click handling — actual drag/up listeners are global (see below).
+        card.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) {
+                // right-click (button 2) → context menu handled by separate listener
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            hideTooltip();
+            if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                // Toggle multi-select; do NOT begin drag
+                toggleMultiSelect(data.id);
+                return;
+            }
+            activeDrag = { id: data.id, data: data, card: card, startX: e.clientX, startY: e.clientY, moved: false };
+            card.style.cursor = 'grabbing';
+        });
+        card.addEventListener('mouseenter', function (e) {
+            if (activeDrag) return;
+            applyHoverHighlight(data.id);
+            showTooltip({ x: e.clientX, y: e.clientY }, data);
+        });
+        card.addEventListener('mousemove', function (e) {
+            if (activeDrag) return;
+            moveTooltip({ x: e.clientX, y: e.clientY });
+        });
+        card.addEventListener('mouseleave', function () {
+            clearHoverHighlight();
+            hideTooltip();
+        });
+        card.addEventListener('contextmenu', function (e) {
+            onCardContextMenu(e, data);
+        });
+    }
+
+    function onCardContextMenu(e, data) {
+        e.preventDefault();
+        e.stopPropagation();
+        var ids;
+        if (selectedIds.size > 0 && selectedIds.has(data.id)) {
+            ids = Array.from(selectedIds);
+        } else {
+            // Right-click on an unselected card: act on that card only
+            clearMultiSelect();
+            selectedIds.add(data.id);
+            var c = nodeCards[data.id];
+            if (c) c.classList.add('selected');
+            ids = [data.id];
+        }
+        var types = ids.map(function (id) {
+            var n = cy.getElementById(id);
+            return n.length ? n.data('resourceType') : null;
+        });
+        var names = ids.map(function (id) {
+            var n = cy.getElementById(id);
+            return n.length ? n.data('name') : id;
+        });
+        sendToKotlin('contextMenuRequest', {
+            nodeIds: ids,
+            names: names,
+            resourceTypes: types,
+            // clientX/Y are viewport-relative; since JCEF fills its Swing component,
+            // they map 1:1 to coordinates inside browser.component on the Kotlin side.
+            clientX: Math.round(e.clientX),
+            clientY: Math.round(e.clientY)
+        });
     }
 
     var syncRaf = null;
@@ -787,39 +826,161 @@
             applyZoom(1 - delta * sensitivity, e.offsetX, e.offsetY);
         }, { passive: false });
 
+        // One zoom step around the viewport center: dir > 0 zooms in, otherwise out.
+        function zoomStep(dir) {
+            applyZoom(dir > 0 ? 1.02 : 1 / 1.02, cy.width() / 2, cy.height() / 2);
+        }
+
         // Zoom control buttons — 5% step
         document.getElementById('zoom-in').addEventListener('click', function () {
             if (!cy) return;
-            applyZoom(1.02, cy.width() / 2, cy.height() / 2);
+            zoomStep(1);
         });
         document.getElementById('zoom-out').addEventListener('click', function () {
             if (!cy) return;
-            applyZoom(1 / 1.02, cy.width() / 2, cy.height() / 2);
+            zoomStep(-1);
         });
         document.getElementById('zoom-fit').addEventListener('click', function () {
             if (!cy) return;
-            cy.fit(undefined, 30);
+            fitGraph();
         });
 
         // Keyboard zoom: +/- and =/- keys (skip when typing in search)
         document.addEventListener('keydown', function (e) {
             if (!cy) return;
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            var cx = cy.width() / 2;
-            var cy2 = cy.height() / 2;
             if (e.key === '+' || e.key === '=') {
                 e.preventDefault();
-                applyZoom(1.02, cx, cy2);
+                zoomStep(1);
             } else if (e.key === '-' || e.key === '_') {
                 e.preventDefault();
-                applyZoom(1 / 1.02, cx, cy2);
+                zoomStep(-1);
             } else if (e.key === '0') {
                 e.preventDefault();
-                cy.fit(undefined, 30);
+                fitGraph();
             }
         });
     }
     initZoomControls();
+
+    function fitGraph() {
+        cy.fit(undefined, 30);
+    }
+
+    // Native node rendering is hidden (the HTML overlay draws the cards); only cluster
+    // boxes and edges are drawn by cytoscape itself.
+    function cyStylesheet(edgeCurveStyle) {
+        return [
+            {
+                selector: 'node',
+                style: {
+                    // Native rendering hidden — HTML overlay does the drawing.
+                    'label': '',
+                    'background-opacity': 0,
+                    'border-width': 0,
+                    'width': 'data(w)',
+                    'height': 'data(h)',
+                    'shape': 'round-rectangle'
+                }
+            },
+            {
+                selector: 'node[?isParent]',
+                style: {
+                    'background-opacity': 0.10,
+                    'background-color': '#888',
+                    'border-width': 1.5,
+                    'border-color': '#888',
+                    'border-opacity': 0.85,
+                    'shape': 'round-rectangle',
+                    'label': 'data(name)',
+                    'text-valign': 'top',
+                    'text-halign': 'center',
+                    'text-margin-y': -6,
+                    'font-size': 12,
+                    'font-weight': 600,
+                    'color': '#bbb',
+                    'padding': 18
+                }
+            },
+            {
+                selector: 'edge',
+                style: {
+                    'width': 1.5,
+                    'line-color': '#999',
+                    'target-arrow-color': '#999',
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': edgeCurveStyle || 'bezier',
+                    'arrow-scale': 0.8
+                }
+            },
+            {
+                selector: 'edge.hot',
+                style: {
+                    'opacity': 1,
+                    'width': 2.5,
+                    'line-color': '#4E79A7',
+                    'target-arrow-color': '#4E79A7'
+                }
+            },
+            {
+                selector: 'edge.cold',
+                style: {
+                    'opacity': 0.1
+                }
+            },
+            {
+                selector: 'node.dimmed',
+                style: { 'opacity': 0.25 }
+            },
+            {
+                selector: 'edge.dimmed',
+                style: { 'opacity': 0.15 }
+            },
+            {
+                selector: 'edge.stub-edge',
+                style: {
+                    'width': 1,
+                    'line-style': 'dashed',
+                    'line-color': '#aaa',
+                    'target-arrow-color': '#aaa'
+                }
+            }
+        ];
+    }
+
+    // Restore the saved viewport on a re-render, otherwise fit and center on the current node.
+    function restoreViewport(savedZoom, savedPan, currentNodeId) {
+        if (savedZoom && savedPan) {
+            cy.zoom(savedZoom);
+            cy.pan(savedPan);
+        } else {
+            // First render — fit graph, then center on current node
+            fitGraph();
+            var currentNode = cy.getElementById(currentNodeId);
+            if (currentNode.length) {
+                cy.center(currentNode);
+            }
+        }
+    }
+
+    function fadeIn(ele) {
+        ele.style('opacity', 0);
+        ele.animate({ style: { opacity: 1 } }, { duration: 300, complete: function () {
+            ele.removeStyle('opacity');
+        }});
+    }
+
+    // Fade in the nodes that were not in the previous render, and every edge touching one.
+    function fadeInNewElements() {
+        cy.nodes().forEach(function (node) {
+            if (!previousNodeIds.has(node.id())) fadeIn(node);
+        });
+        cy.edges().forEach(function (edge) {
+            var srcNew = !previousNodeIds.has(edge.source().id());
+            var tgtNew = !previousNodeIds.has(edge.target().id());
+            if (srcNew || tgtNew) fadeIn(edge);
+        });
+    }
 
     function initCytoscape(elements, currentNodeId, edgeCurveStyle, layoutDirection) {
         currentLayoutDir = layoutDirection || 'LR';
@@ -842,82 +1003,7 @@
             container: document.getElementById('cy'),
             elements: elements,
             layout: { name: 'preset', fit: false },
-            style: [
-                {
-                    selector: 'node',
-                    style: {
-                        // Native rendering hidden — HTML overlay does the drawing.
-                        'label': '',
-                        'background-opacity': 0,
-                        'border-width': 0,
-                        'width': 'data(w)',
-                        'height': 'data(h)',
-                        'shape': 'round-rectangle'
-                    }
-                },
-                {
-                    selector: 'node[?isParent]',
-                    style: {
-                        'background-opacity': 0.10,
-                        'background-color': '#888',
-                        'border-width': 1.5,
-                        'border-color': '#888',
-                        'border-opacity': 0.85,
-                        'shape': 'round-rectangle',
-                        'label': 'data(name)',
-                        'text-valign': 'top',
-                        'text-halign': 'center',
-                        'text-margin-y': -6,
-                        'font-size': 12,
-                        'font-weight': 600,
-                        'color': '#bbb',
-                        'padding': 18
-                    }
-                },
-                {
-                    selector: 'edge',
-                    style: {
-                        'width': 1.5,
-                        'line-color': '#999',
-                        'target-arrow-color': '#999',
-                        'target-arrow-shape': 'triangle',
-                        'curve-style': edgeCurveStyle || 'bezier',
-                        'arrow-scale': 0.8
-                    }
-                },
-                {
-                    selector: 'edge.hot',
-                    style: {
-                        'opacity': 1,
-                        'width': 2.5,
-                        'line-color': '#4E79A7',
-                        'target-arrow-color': '#4E79A7'
-                    }
-                },
-                {
-                    selector: 'edge.cold',
-                    style: {
-                        'opacity': 0.1
-                    }
-                },
-                {
-                    selector: 'node.dimmed',
-                    style: { 'opacity': 0.25 }
-                },
-                {
-                    selector: 'edge.dimmed',
-                    style: { 'opacity': 0.15 }
-                },
-                {
-                    selector: 'edge.stub-edge',
-                    style: {
-                        'width': 1,
-                        'line-style': 'dashed',
-                        'line-color': '#aaa',
-                        'target-arrow-color': '#aaa'
-                    }
-                }
-            ],
+            style: cyStylesheet(edgeCurveStyle),
             minZoom: 0.2,
             maxZoom: 3,
             zoomingEnabled: true,
@@ -932,12 +1018,7 @@
 
         // Node click
         cy.on('tap', 'node', function (evt) {
-            const data = evt.target.data();
-            if (data.resourceType === 'stub') {
-                sendToKotlin('expandRequest', { direction: data.stubDirection, boundaryNodeId: data.boundaryNodeId });
-            } else {
-                sendToKotlin('nodeClick', { nodeId: data.id, resourceType: data.resourceType });
-            }
+            activateNode(evt.target.data());
         });
 
         // Hover tooltip
@@ -959,40 +1040,11 @@
             // "No nodes match" hint set via showGraphMessage isn't erased on layout-complete.
             if (cy.nodes().length > 0) loadingEl.style.display = 'none';
 
-            // Restore viewport or center on current node
-            if (isRerender && savedZoom && savedPan) {
-                cy.zoom(savedZoom);
-                cy.pan(savedPan);
-            } else {
-                // First render — fit graph, then center on current node
-                cy.fit(undefined, 30);
-                var currentNode = cy.getElementById(currentNodeId);
-                if (currentNode.length) {
-                    cy.center(currentNode);
-                }
-            }
+            // Restore viewport or center on current node (savedZoom/Pan are only set on a re-render)
+            restoreViewport(savedZoom, savedPan, currentNodeId);
 
             // Fade in new nodes and edges
-            if (isRerender && previousNodeIds.size > 0) {
-                cy.nodes().forEach(function (node) {
-                    if (!previousNodeIds.has(node.id())) {
-                        node.style('opacity', 0);
-                        node.animate({ style: { opacity: 1 } }, { duration: 300, complete: function () {
-                            node.removeStyle('opacity');
-                        }});
-                    }
-                });
-                cy.edges().forEach(function (edge) {
-                    var srcNew = !previousNodeIds.has(edge.source().id());
-                    var tgtNew = !previousNodeIds.has(edge.target().id());
-                    if (srcNew || tgtNew) {
-                        edge.style('opacity', 0);
-                        edge.animate({ style: { opacity: 1 } }, { duration: 300, complete: function () {
-                            edge.removeStyle('opacity');
-                        }});
-                    }
-                });
-            }
+            if (isRerender && previousNodeIds.size > 0) fadeInNewElements();
 
             // Build HTML cards over cytoscape
             buildNodeCards();
@@ -1003,15 +1055,7 @@
             cy.on('pan zoom layoutstop', drawMinimap);
         }
 
-        var elkOpts = Object.assign({}, ELK_LAYOUT_OPTIONS, {
-            'elk.direction': elkDirectionFor(layoutDirection)
-        });
-        cy.layout({ name: 'elk', fit: false, elk: elkOpts, nodeLayoutOptions: elkNodeOptionsFor(layoutDirection) })
-            .run()
-            .promiseOn('layoutstop').then(function () {
-                alphabetizeInterchangeableGroups(cy, layoutDirection, CROSSING_TOLERANCE, CROSSING_SLACK);
-                finalizeLayout();
-            });
+        runElkLayout(currentLayoutDir).then(finalizeLayout);
     }
 
 
@@ -1059,9 +1103,8 @@
     function applyStatusToCard(id) {
         var card = nodeCards[id];
         if (!card || card.classList.contains('stub')) return;
-        var st = nodeStatus[id];
-        card.style.setProperty('--card-bar-color', (st && STATUS_BAR_COLORS[st]) || NEUTRAL_BAR_COLOR);
-        card.classList.toggle('running', st === 'running');
+        card.style.setProperty('--card-bar-color', statusBarColor(id));
+        card.classList.toggle('running', nodeStatus[id] === 'running');
     }
 
     // Repaint every card from nodeStatus (status mode only). Not a graph re-render.
@@ -1090,7 +1133,7 @@
     // Receive { nodeId: { status, failed, warned } } and repaint the triangle overlay.
     window.setTestStatuses = function (jsonStr) {
         try {
-            nodeTestStatus = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : (jsonStr || {});
+            nodeTestStatus = parseArg(jsonStr) || {};
             repaintAllFailureBadges();
         } catch (e) { console.error('setTestStatuses error:', e); }
     };
@@ -1098,7 +1141,7 @@
     // Merge {uniqueId: status} into the store; live-update cards if in status mode.
     window.setNodeStatuses = function (jsonStr) {
         try {
-            var map = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            var map = parseArg(jsonStr);
             Object.keys(map).forEach(function (id) { nodeStatus[id] = map[id]; });
             if (currentColorMode === 'status') {
                 Object.keys(map).forEach(applyStatusToCard);
@@ -1109,14 +1152,14 @@
     // Replace the store wholesale (authoritative final state). Absent ids -> neutral.
     window.applyRunResults = function (jsonStr) {
         try {
-            nodeStatus = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            nodeStatus = parseArg(jsonStr);
             if (currentColorMode === 'status') repaintAllStatusCards();
         } catch (e) { console.error('applyRunResults error:', e); }
     };
 
     window.seedQueuedStatuses = function (idsJson) {
         try {
-            var ids = typeof idsJson === 'string' ? JSON.parse(idsJson) : idsJson;
+            var ids = parseArg(idsJson);
             ids.forEach(function (id) { nodeStatus[id] = 'queued'; });
             // A new run is starting: drop the previous run's test triangles so they
             // don't linger as stale until fresh run_results.json arrives.
@@ -1129,7 +1172,7 @@
 
     window.setRunResults = function (payloadOrJson) {
         try {
-            var map = typeof payloadOrJson === 'string' ? JSON.parse(payloadOrJson) : payloadOrJson;
+            var map = parseArg(payloadOrJson);
             nodeStatus = {};
             nodeFailureMessages = {};
             Object.keys(map).forEach(function (id) {
@@ -1174,7 +1217,7 @@
         loadExpandedFromStorage();
         loadMinimapPref();
         try {
-            const graph = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            const graph = parseArg(jsonStr);
             window.__catalogAvailable = !!graph.catalogAvailable;
             currentColorMode = graph.nodeColorMode || 'resource';
 
@@ -1186,49 +1229,9 @@
             });
             saveExpandedToStorage();
 
-            const elements = [];
-
-            for (const node of graph.nodes) {
-                if (node.isParent) {
-                    elements.push({
-                        data: {
-                            id: node.id,
-                            name: node.name,
-                            isParent: true,
-                            resourceType: 'cluster'
-                        }
-                    });
-                    continue;
-                }
-
-                var name = node.name;
-                var w = measureCardWidth(name);
-                var h = (node.resourceType === 'stub') ? STUB_HEIGHT : cardHeightFor(node);
-                if (node.resourceType === 'stub') { w = STUB_WIDTH; }
-
-                elements.push({
-                    data: {
-                        id: node.id,
-                        name: name,
-                        resourceType: node.resourceType,
-                        schema: node.schema,
-                        database: node.database,
-                        materialization: node.materialization,
-                        description: node.description,
-                        filePath: node.filePath,
-                        depth: node.depth,
-                        isCurrent: node.isCurrent,
-                        stubDirection: node.stubDirection,
-                        boundaryNodeId: node.boundaryNodeId,
-                        columns: node.columns || [],
-                        iconKey: pickIconKey(node),
-                        barColor: pickBarColor(node, graph.nodeColorMode),
-                        parent: node.parent || undefined,
-                        w: w,
-                        h: h
-                    }
-                });
-            }
+            const elements = graph.nodes.map(function (node) {
+                return toCyNodeElement(node, graph.nodeColorMode);
+            });
 
             nodeSearchHints = {};
             for (const node of graph.nodes) {
@@ -1236,41 +1239,83 @@
             }
 
             for (const edge of graph.edges) {
-                var isStub = edge.fromNodeId.indexOf('__stub_') === 0 || edge.toNodeId.indexOf('__stub_') === 0;
-                elements.push({
-                    data: {
-                        id: edge.fromNodeId + '->' + edge.toNodeId,
-                        source: edge.fromNodeId,
-                        target: edge.toNodeId
-                    },
-                    classes: isStub ? 'stub-edge' : ''
-                });
+                elements.push(toCyEdgeElement(edge));
             }
 
-            var _loadingEl = document.getElementById('loading');
-            if (_loadingEl && elements.length > 0) { _loadingEl.style.display = 'none'; }
+            if (loadingEl && elements.length > 0) { loadingEl.style.display = 'none'; }
             initCytoscape(elements, graph.currentNodeId, graph.edgeCurveStyle, graph.layoutDirection);
         } catch (e) {
             console.error('renderGraph error:', e);
         }
     };
 
+    // Kotlin LineageGraph node -> cytoscape element; data(w)/data(h) feed ELK and the card size.
+    function toCyNodeElement(node, colorMode) {
+        if (node.isParent) {
+            return {
+                data: {
+                    id: node.id,
+                    name: node.name,
+                    isParent: true,
+                    resourceType: 'cluster'
+                }
+            };
+        }
+
+        var name = node.name;
+        var w = measureCardWidth(name);
+        var h = (node.resourceType === 'stub') ? STUB_HEIGHT : cardHeightFor(node);
+        if (node.resourceType === 'stub') { w = STUB_WIDTH; }
+
+        return {
+            data: {
+                id: node.id,
+                name: name,
+                resourceType: node.resourceType,
+                schema: node.schema,
+                database: node.database,
+                materialization: node.materialization,
+                description: node.description,
+                filePath: node.filePath,
+                depth: node.depth,
+                isCurrent: node.isCurrent,
+                stubDirection: node.stubDirection,
+                boundaryNodeId: node.boundaryNodeId,
+                columns: node.columns || [],
+                iconKey: pickIconKey(node),
+                barColor: pickBarColor(node, colorMode),
+                parent: node.parent || undefined,
+                w: w,
+                h: h
+            }
+        };
+    }
+
+    function toCyEdgeElement(edge) {
+        var isStub = edge.fromNodeId.indexOf('__stub_') === 0 || edge.toNodeId.indexOf('__stub_') === 0;
+        return {
+            data: {
+                id: edge.fromNodeId + '->' + edge.toNodeId,
+                source: edge.fromNodeId,
+                target: edge.toNodeId
+            },
+            classes: isStub ? 'stub-edge' : ''
+        };
+    }
+
     // Show a centered message in the graph area by reusing the loading overlay.
     // Called by LineageTab when a selection resolves to zero nodes.
     window.showGraphMessage = function (msg) {
-        var el = document.getElementById('loading');
-        if (!el) return;
-        el.textContent = msg;
-        el.style.display = '';
+        if (!loadingEl) return;
+        loadingEl.textContent = msg;
+        loadingEl.style.display = '';
     };
 
     window.highlightNode = function (nodeId) {
         if (!cy) return;
-        Object.values(nodeCards).forEach(function (c) { c.classList.remove('selected'); });
         const node = cy.getElementById(nodeId);
+        selectCards(new Set(node.length ? [nodeId] : []));
         if (node.length) {
-            var card = nodeCards[nodeId];
-            if (card) card.classList.add('selected');
             cy.animate({ center: { eles: node }, duration: 300 });
         }
     };
@@ -1340,14 +1385,7 @@
         var tokens = tokenize(query);
 
         cy.nodes().forEach(function (node) {
-            var match = matchesQuery(node.id(), tokens);
-            if (match) {
-                node.removeClass('dimmed');
-                var c = nodeCards[node.id()]; if (c) c.classList.remove('dimmed');
-            } else {
-                node.addClass('dimmed');
-                var c2 = nodeCards[node.id()]; if (c2) c2.classList.add('dimmed');
-            }
+            setDimmed(node, !matchesQuery(node.id(), tokens));
         });
         cy.edges().forEach(function (edge) {
             var src = edge.source();
@@ -1359,11 +1397,7 @@
         maybeShowCatalogMissingToast(tokens);
     };
 
-    window.resetFilter = function () {
-        if (!cy) return;
-        cy.elements().removeClass('dimmed');
-        Object.values(nodeCards).forEach(function (c) { c.classList.remove('dimmed'); });
-    };
+    window.resetFilter = clearNeighborhoodDim;
 
     // === Docs sidebar ===
 
@@ -1424,13 +1458,19 @@
         };
     }
 
-    function beginScreenshot() {
-        var btn = document.getElementById('copy-screenshot');
-        if (btn) btn.disabled = true;
+    var screenshotBtn = document.getElementById('copy-screenshot');
+
+    // Hide (or show again) the floating chrome and lock the button while a capture runs.
+    function setScreenshotChromeHidden(hidden) {
+        if (screenshotBtn) screenshotBtn.disabled = hidden;
         SCREENSHOT_CHROME_IDS.forEach(function (id) {
             var el = document.getElementById(id);
-            if (el) el.classList.add('screenshot-hidden');
+            if (el) el.classList.toggle('screenshot-hidden', hidden);
         });
+    }
+
+    function beginScreenshot() {
+        setScreenshotChromeHidden(true);
         if (screenshotRestoreTimer) clearTimeout(screenshotRestoreTimer);
         // 1.5s: generous upper bound for the native capture; on success Kotlin calls
         // restoreScreenshotChrome() well before this, which clears the timer.
@@ -1448,15 +1488,9 @@
             clearTimeout(screenshotRestoreTimer);
             screenshotRestoreTimer = null;
         }
-        SCREENSHOT_CHROME_IDS.forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) el.classList.remove('screenshot-hidden');
-        });
-        var btn = document.getElementById('copy-screenshot');
-        if (btn) btn.disabled = false;
+        setScreenshotChromeHidden(false);
     };
 
-    var screenshotBtn = document.getElementById('copy-screenshot');
     if (screenshotBtn) {
         screenshotBtn.addEventListener('click', beginScreenshot);
     }
@@ -1552,8 +1586,23 @@
             materialization: p.materialization
         });
         iconEl.innerHTML = ICONS[iconKey] || ICONS.view;
-        document.getElementById('docs-name').textContent = p.name || '';
-        document.getElementById('docs-schema').textContent = p.schema || '';
+        setDocsHeader(p.name || '', p.schema || '');
+    }
+
+    function setDocsHeader(name, schema) {
+        var nameEl = document.getElementById('docs-name');
+        var schemaEl = document.getElementById('docs-schema');
+        if (nameEl) nameEl.textContent = name;
+        if (schemaEl) schemaEl.textContent = schema;
+    }
+
+    // <tr> rows of a .meta-table from [key, value] pairs.
+    function metaTableRowsHtml(rows) {
+        var html = '';
+        for (var i = 0; i < rows.length; i++) {
+            html += '<tr><td class="k">' + escapeHtml(rows[i][0]) + '</td><td class="v">' + escapeHtml(String(rows[i][1])) + '</td></tr>';
+        }
+        return html;
     }
 
     function renderDocsPills(p) {
@@ -1677,17 +1726,12 @@
         if (m.freshnessWarnAfter) rows.push(['Warn after', m.freshnessWarnAfter]);
         if (m.freshnessErrorAfter) rows.push(['Error after', m.freshnessErrorAfter]);
         if (!rows.length) { el.innerHTML = '<div class="empty">No metadata.</div>'; return; }
-        var html = '<table class="meta-table">';
-        for (var i = 0; i < rows.length; i++) {
-            html += '<tr><td class="k">' + escapeHtml(rows[i][0]) + '</td><td class="v">' + escapeHtml(String(rows[i][1])) + '</td></tr>';
-        }
-        html += '</table>';
-        el.innerHTML = html;
+        el.innerHTML = '<table class="meta-table">' + metaTableRowsHtml(rows) + '</table>';
     }
 
     window.showDocs = function (jsonStr) {
         try {
-            var p = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            var p = parseArg(jsonStr);
             if (sidebarEl) sidebarEl.classList.remove('freshness-mode');
             renderDocsHeader(p);
             renderDocsDescription(p);
@@ -1701,25 +1745,23 @@
         }
     };
 
+    var FRESHNESS_STATUS_META = {
+        pass:      { label: 'Fresh',                                  cls: 'fresh-pass',      dot: '●' },
+        warn:      { label: 'Stale (warn)',                           cls: 'fresh-warn',      dot: '●' },
+        error:     { label: 'Stale (error)',                          cls: 'fresh-error',     dot: '⬤' },
+        no_result: { label: 'No freshness result for this source',    cls: 'fresh-no_result', dot: '○' },
+        no_data:   { label: 'sources.json not found',                 cls: 'fresh-no_data',   dot: '○' }
+    };
+
     window.showFreshnessDetail = function (jsonStr) {
         try {
-            var p = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
-            var nameEl = document.getElementById('docs-name');
-            var schemaEl = document.getElementById('docs-schema');
-            if (nameEl) nameEl.textContent = p.name || '—';
-            if (schemaEl) schemaEl.textContent = p.relation || '';
+            var p = parseArg(jsonStr);
+            setDocsHeader(p.name || '—', p.relation || '');
 
             var panel = document.getElementById('docs-freshness-panel');
             if (!panel) return;
 
-            var STATUS_META = {
-                pass:      { label: 'Fresh',                                  cls: 'fresh-pass',      dot: '●' },
-                warn:      { label: 'Stale (warn)',                           cls: 'fresh-warn',      dot: '●' },
-                error:     { label: 'Stale (error)',                          cls: 'fresh-error',     dot: '⬤' },
-                no_result: { label: 'No freshness result for this source',    cls: 'fresh-no_result', dot: '○' },
-                no_data:   { label: 'sources.json not found',                 cls: 'fresh-no_data',   dot: '○' }
-            };
-            var meta = STATUS_META[p.status] || STATUS_META.no_result;
+            var meta = FRESHNESS_STATUS_META[p.status] || FRESHNESS_STATUS_META.no_result;
 
             var html = '';
             html += '<div class="freshness-banner ' + meta.cls + '">';
@@ -1742,11 +1784,7 @@
             if (p.errorAfter) rows.push(['Error after', p.errorAfter]);
             if (p.filePath) rows.push(['Defined in', p.filePath]);
             if (rows.length) {
-                html += '<table class="meta-table" style="margin-top: 8px;">';
-                for (var i = 0; i < rows.length; i++) {
-                    html += '<tr><td class="k">' + escapeHtml(rows[i][0]) + '</td><td class="v">' + escapeHtml(String(rows[i][1])) + '</td></tr>';
-                }
-                html += '</table>';
+                html += '<table class="meta-table" style="margin-top: 8px;">' + metaTableRowsHtml(rows) + '</table>';
             }
 
             html += '<div class="freshness-back-row"><button class="freshness-back-btn" id="freshness-back-btn">View source docs</button></div>';
@@ -1771,13 +1809,10 @@
     window.showMultiSelectPlaceholder = function (count) {
         // Update sidebar header
         var iconEl = document.getElementById('docs-icon');
-        var nameEl = document.getElementById('docs-name');
-        var schemaEl = document.getElementById('docs-schema');
         var descEl = document.getElementById('docs-description');
         var pillsEl = document.getElementById('docs-pills');
         if (iconEl) iconEl.textContent = '';
-        if (nameEl) nameEl.textContent = count + ' nodes selected';
-        if (schemaEl) schemaEl.textContent = '';
+        setDocsHeader(count + ' nodes selected', '');
         if (descEl) { descEl.classList.add('empty'); document.getElementById('docs-desc-text').textContent = ''; }
         if (pillsEl) pillsEl.textContent = '';
         // Clear all section content and show a message in the columns section
@@ -1792,17 +1827,14 @@
             colSection.appendChild(hint);
         }
         // Ensure sidebar is open
-        var sidebarEl = document.getElementById('docs-sidebar');
-        if (sidebarEl) sidebarEl.classList.add('open');
-        var toggleBtn = document.getElementById('toggle-sidebar');
-        if (toggleBtn) toggleBtn.classList.add('active');
+        setSidebarOpen(true);
     };
 
     // Apply a palette resolved from the live IDE theme (see LineageTab.buildThemeVars).
     // Payload: { isDark: bool, vars: { '--css-var': '#rrggbb', ... } }.
     window.applyThemeColors = function (jsonStr) {
         try {
-            var data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+            var data = parseArg(jsonStr);
             var root = document.documentElement;
             document.body.classList.toggle('theme-light', !data.isDark);
             Object.keys(data.vars).forEach(function (k) {
