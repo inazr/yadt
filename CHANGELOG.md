@@ -2,10 +2,15 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-17
+
 - Lineage: zooming no longer speeds up the longer the tool window is open. The wheel, zoom-button and keyboard zoom handlers were attached again on every graph render, so after N re-renders a single scroll tick or click zoomed N times; they are now attached once
 - Lineage: the hover tooltip shows the node's name again (its title line was always empty)
 - Lineage: nodes whose last run ended in a status YADT doesn't color (for example dbt's `no-op`) no longer show as failed when the tool window reloads `run_results.json`; they keep a neutral card, as they already did right after a run
 - Lineage: when a run starts with a `tag:`, `path:`, `source:`, `fqn:` or wildcard selector, exactly the nodes it builds are marked as queued. Previously only plain model names and `+` operators were resolved, and any other selector marked every model/seed/snapshot visible in the graph
+- Compatibility: YADT no longer uses any IntelliJ Platform API that JetBrains marks as deprecated or scheduled for removal (flagged against 2026.2 and the 2026.3 EAP), and it now uses the IDE's own Kotlin coroutines instead of bundling a copy — that bundled copy is what kept dbt Charts support from starting on PyCharm 2026.2 in 0.6.0
+- A dbt project added to an open IDE project (a new `dbt_project.yml`) is now picked up without reopening the project
+- `dct` and `uv` are now also found in `/usr/local/bin` and `/opt/homebrew/bin` when they aren't on the IDE's `PATH`
 
 ## [0.6.1] - 2026-09-17
 
@@ -106,7 +111,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/inazr/yadt/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/inazr/yadt/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/inazr/yadt/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/inazr/yadt/compare/v0.5.1...v0.5.2
