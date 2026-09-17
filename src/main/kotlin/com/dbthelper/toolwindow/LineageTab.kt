@@ -8,7 +8,10 @@ import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtRunStatusParser
 import com.dbthelper.actions.DbtVerb
+import com.dbthelper.actions.RunResult
 import com.dbthelper.actions.RunResultsParser
+import com.dbthelper.actions.isTestUniqueId
+import com.dbthelper.actions.testOutcomesByNode
 import com.dbthelper.actions.nodeStatuses
 import com.dbthelper.core.DbtSelectionResolver
 import com.dbthelper.core.DocsPayloadBuilder
@@ -38,6 +41,7 @@ import org.cef.browser.CefBrowser
 import org.cef.handler.CefContextMenuHandlerAdapter
 import org.cef.handler.CefLoadHandlerAdapter
 import java.awt.BorderLayout
+import java.awt.Color
 import javax.swing.JPanel
 import javax.swing.UIManager
 
@@ -511,76 +515,14 @@ class LineageTab(
         executeJs("applyThemeColors('$payload')")
     }
 
-    /**
-     * Resolve the webview's CSS palette from the live IDE theme so the graph blends
-     * with whatever Look-and-Feel is configured (e.g. a dark-blue theme), instead of
-     * the old two hard-coded black/white palettes. Only two keys are read directly —
-     * `Panel.background` and `Label.foreground`, which every L&F provides — and the
-     * remaining surfaces/borders/muted text are derived from them by lightening,
-     * darkening, or blending so the result can never break on a missing theme key.
-     * Semantic node colors (status/resource bars) are deliberately not themed.
-     */
-    private fun buildThemeVars(): Map<String, Any> {
-        val bg = UIManager.getColor("Panel.background") ?: java.awt.Color(0x1e, 0x1e, 0x1e)
-        val fg = UIManager.getColor("Label.foreground") ?: java.awt.Color(0xcc, 0xcc, 0xcc)
-        val isDark = luminance(bg) < 0.5
-        val dir = if (isDark) 1.0 else -1.0
-        val accent = UIManager.getColor("Component.focusColor")
+    /** The IDE theme colors the webview palette is derived from (see [LineageThemePalette]). */
+    private fun buildThemeVars(): Map<String, Any> = LineageThemePalette.cssVars(
+        bg = UIManager.getColor("Panel.background") ?: Color(0x1e, 0x1e, 0x1e),
+        fg = UIManager.getColor("Label.foreground") ?: Color(0xcc, 0xcc, 0xcc),
+        accent = UIManager.getColor("Component.focusColor")
             ?: UIManager.getColor("Link.activeForeground")
-            ?: java.awt.Color(0x21, 0x96, 0xF3)
-
-        val cardBg = shift(bg, 0.06 * dir)
-        val cardBorder = shift(bg, 0.20 * dir)
-        val cardIconBg = shift(bg, -0.03 * dir)
-        val muted = blend(fg, bg, 0.45)
-        val edge = blend(fg, bg, 0.62)
-
-        return mapOf(
-            "isDark" to isDark,
-            "vars" to mapOf(
-                "--bg-color" to hex(bg),
-                "--text-color" to hex(fg),
-                "--card-name" to hex(fg),
-                "--card-schema" to hex(muted),
-                "--card-bg" to hex(cardBg),
-                "--card-border" to hex(cardBorder),
-                "--card-icon-bg" to hex(cardIconBg),
-                "--card-icon-fg" to hex(muted),
-                "--card-selected-border" to hex(accent),
-                "--card-selected-bg" to hex(cardBg),
-                "--tooltip-bg" to hex(cardBg),
-                "--tooltip-border" to hex(cardBorder),
-                "--tooltip-text" to hex(fg),
-                "--tooltip-name" to hex(fg),
-                "--tooltip-detail" to hex(muted),
-                "--btn-bg" to hex(cardBg),
-                "--btn-border" to hex(cardBorder),
-                "--btn-text" to hex(fg),
-                "--btn-hover" to hex(shift(cardBg, 0.08 * dir)),
-                "--edge-color" to hex(edge),
-                "--loading-color" to hex(muted),
-                "--stub-bg" to hex(shift(bg, 0.03 * dir)),
-                "--stub-border" to hex(cardBorder),
-                "--stub-text" to hex(muted)
-            )
-        )
-    }
-
-    private fun luminance(c: java.awt.Color): Double =
-        (0.299 * c.red + 0.587 * c.green + 0.114 * c.blue) / 255.0
-
-    /** Lighten ([amount] > 0, toward white) or darken ([amount] < 0, toward black) [c]. */
-    private fun shift(c: java.awt.Color, amount: Double): java.awt.Color =
-        if (amount >= 0) blend(java.awt.Color.WHITE, c, amount) else blend(java.awt.Color.BLACK, c, -amount)
-
-    /** Linear interpolation: [t] of [a] mixed with (1-[t]) of [b]. */
-    private fun blend(a: java.awt.Color, b: java.awt.Color, t: Double): java.awt.Color {
-        val tt = t.coerceIn(0.0, 1.0)
-        fun mix(x: Int, y: Int) = Math.round(x * tt + y * (1 - tt)).toInt().coerceIn(0, 255)
-        return java.awt.Color(mix(a.red, b.red), mix(a.green, b.green), mix(a.blue, b.blue))
-    }
-
-    private fun hex(c: java.awt.Color): String = "#%06x".format(0xFFFFFF and c.rgb)
+            ?: Color(0x21, 0x96, 0xF3)
+    )
 
     private fun handleNodeClick(nodeId: String) {
         // Focus lineage on clicked node directly (don't wait for file open event)
@@ -629,23 +571,6 @@ class LineageTab(
                 logger.warn("Error building freshness detail payload", e)
             }
         }
-    }
-
-    /**
-     * Build { "schema.identifier" / "database.schema.identifier" -> uniqueId }
-     * for all buildable nodes, for resolving dbt log relations to unique ids.
-     */
-    private fun buildRelationKeyIndex(index: ManifestIndex): Map<String, String> {
-        val map = HashMap<String, String>()
-        for ((id, node) in index.nodes) {
-            if (node.resourceType !in BUILDABLE_RESOURCE_TYPES) continue
-            val schema = node.schema ?: continue
-            val identifier = node.alias ?: node.name
-            map["$schema.$identifier".lowercase()] = id
-            val db = node.database
-            if (db != null) map["$db.$schema.$identifier".lowercase()] = id
-        }
-        return map
     }
 
     @Volatile
@@ -736,7 +661,7 @@ class LineageTab(
         ApplicationManager.getApplication().executeOnPooledThread {
             if (isDisposed) return@executeOnPooledThread
             val index = ManifestService.getInstance(project).getIndex()
-            runRelationKeyIndex = buildRelationKeyIndex(index)
+            runRelationKeyIndex = DbtRunStatusParser.relationKeyIndex(index)
             val targetedIds = DbtSelectionResolver(project).resolveLive(index, selector)
                 ?.filter { index.nodes[it]?.resourceType in BUILDABLE_RESOURCE_TYPES }
                 ?: lastBuildableNodeIds
@@ -779,21 +704,16 @@ class LineageTab(
         if (!isPageReady || isDisposed) return
         val show = DbtHelperSettings.getInstance(project).state.showTestFailureBadge
         ApplicationManager.getApplication().invokeLater {
-            if (!isDisposed) {
-                browser.cefBrowser.executeJavaScript(
-                    "window.__showFailureBadges = $show; if (window.repaintAllFailureBadges) window.repaintAllFailureBadges();",
-                    browser.cefBrowser.url, 0
-                )
-            }
+            executeJs("window.__showFailureBadges = $show; if (window.repaintAllFailureBadges) window.repaintAllFailureBadges();")
         }
     }
 
-    private fun pushRunResultsToJs(results: Map<String, com.dbthelper.actions.RunResult>) {
+    private fun pushRunResultsToJs(results: Map<String, RunResult>) {
         if (!isPageReady || isDisposed) return
         // Only graph nodes drive the cards and the "last run (N)" hint; tests color no
-        // card and would inflate that count. Keep the full map for rollUpTestOutcomes,
+        // card and would inflate that count. Keep the full map for testOutcomesByNode,
         // which needs the test entries to attribute outcomes to their tested nodes.
-        val nodeResults = results.filterKeys { !com.dbthelper.actions.isTestUniqueId(it) }
+        val nodeResults = results.filterKeys { !isTestUniqueId(it) }
         val payload = jsonMapper.writeValueAsString(nodeResults.mapValues { (_, r) ->
             mapOf(
                 "status" to r.status.wire,
@@ -803,53 +723,13 @@ class LineageTab(
                 "executionTime" to r.executionTime
             )
         })
-        val testPayload = jsonMapper.writeValueAsString(rollUpTestOutcomes(results))
+        val testPayload = jsonMapper.writeValueAsString(testOutcomesByNode(results, ManifestService.getInstance(project).getIndex()))
         ApplicationManager.getApplication().invokeLater {
-            if (!isDisposed) {
-                browser.cefBrowser.executeJavaScript(
-                    "window.setRunResults && window.setRunResults(${payload});" +
-                        "window.setTestStatuses && window.setTestStatuses(${testPayload});",
-                    browser.cefBrowser.url, 0
-                )
-            }
-        }
-    }
-
-    /**
-     * Attribute test results to the nodes they validate, for the "!" triangle overlay.
-     * Each test's outcome (error/warn) is rolled onto every node it depends on; a node's
-     * triangle is red if any test errored, else yellow if any warned. Returns
-     * { nodeId -> { status: "error"|"warn", failed: Int, warned: Int } }.
-     */
-    private fun rollUpTestOutcomes(
-        results: Map<String, com.dbthelper.actions.RunResult>
-    ): Map<String, Map<String, Any>> {
-        val index = ManifestService.getInstance(project).getIndex()
-        val failed = HashMap<String, Int>()
-        val warned = HashMap<String, Int>()
-        for ((id, r) in results) {
-            if (!com.dbthelper.actions.isTestUniqueId(id)) continue
-            val bucket = when (r.status) {
-                com.dbthelper.actions.RunStatus.ERROR -> failed
-                com.dbthelper.actions.RunStatus.WARN -> warned
-                else -> continue
-            }
-            // parentMap excludes tests, so read the tested nodes off the test node itself.
-            for (parentId in index.nodes[id]?.dependsOnNodes.orEmpty()) {
-                bucket[parentId] = (bucket[parentId] ?: 0) + 1
-            }
-        }
-        val out = HashMap<String, Map<String, Any>>()
-        (failed.keys + warned.keys).forEach { nodeId ->
-            val f = failed[nodeId] ?: 0
-            val w = warned[nodeId] ?: 0
-            out[nodeId] = mapOf(
-                "status" to if (f > 0) "error" else "warn",
-                "failed" to f,
-                "warned" to w
+            executeJs(
+                "window.setRunResults && window.setRunResults(${payload});" +
+                    "window.setTestStatuses && window.setTestStatuses(${testPayload});"
             )
         }
-        return out
     }
 
     /** Escape [s] for embedding in a single-quoted JS string literal. */

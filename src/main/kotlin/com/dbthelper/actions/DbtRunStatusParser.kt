@@ -1,5 +1,8 @@
 package com.dbthelper.actions
 
+import com.dbthelper.core.model.BUILDABLE_RESOURCE_TYPES
+import com.dbthelper.core.model.ManifestIndex
+
 /**
  * Stateless parser for dbt's human-readable progress lines emitted during
  * `run` / `build` / `test`. Maps a line to a (relationKey, status) pair, where
@@ -27,6 +30,20 @@ object DbtRunStatusParser {
 
     // First "word.word" token (schema.identifier). Allows a 3-part db.schema.id too.
     private val relationRegex = Regex("""([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+){1,2})""")
+
+    /**
+     * `schema.identifier` and `database.schema.identifier` (lower-cased) -> uniqueId for every
+     * buildable node, so the relation a log line names can be resolved to its lineage card.
+     */
+    fun relationKeyIndex(index: ManifestIndex): Map<String, String> {
+        val map = HashMap<String, String>()
+        for ((id, node) in index.nodes) {
+            if (node.resourceType !in BUILDABLE_RESOURCE_TYPES || node.schema == null) continue
+            map[node.qualifiedName(includeDatabase = false).lowercase()] = id
+            if (node.database != null) map[node.qualifiedName().lowercase()] = id
+        }
+        return map
+    }
 
     fun parseLine(rawLine: String): NodeStatusUpdate? {
         val line = ansiRegex.replace(rawLine, "")
