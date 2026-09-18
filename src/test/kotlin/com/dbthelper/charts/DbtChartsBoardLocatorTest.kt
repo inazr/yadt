@@ -3,6 +3,8 @@ package com.dbthelper.charts
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -16,6 +18,11 @@ class DbtChartsBoardLocatorTest {
         tmp.resolve(rel).also { Files.createDirectories(it.parent); Files.writeString(it, "") }
 
     private fun isBoard(path: Path) = DbtChartsBoardLocator.isBoard(
+        path.fileName.toString(), path.parent,
+        { it.parent }, { it.fileName?.toString() ?: "" }, { dir, name -> Files.isRegularFile(dir.resolve(name)) },
+    )
+
+    private fun chartsDir(path: Path): Path? = DbtChartsBoardLocator.chartsDir(
         path.fileName.toString(), path.parent,
         { it.parent }, { it.fileName?.toString() ?: "" }, { dir, name -> Files.isRegularFile(dir.resolve(name)) },
     )
@@ -55,5 +62,18 @@ class DbtChartsBoardLocatorTest {
         file("proj/dbt_charts.yml")
         assertFalse(isBoard(file("proj/charts/data.csv")))
         assertFalse(isBoard(file("proj/charts/query.sql")))
+    }
+
+    @Test
+    fun `chartsDir of a nested board is the project's charts directory`() {
+        file("proj/dbt_charts.yml")
+        assertEquals(tmp.resolve("proj/charts"), chartsDir(file("proj/charts/fin/q1.yml")))
+    }
+
+    @Test
+    fun `chartsDir is null for files that are not boards`() {
+        file("proj/dbt_charts.yml")
+        assertNull(chartsDir(file("proj/charts/meta.yml")))
+        assertNull(chartsDir(file("proj/models/x.yml")))
     }
 }

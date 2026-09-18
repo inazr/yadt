@@ -14,26 +14,37 @@ object DbtChartsBoardLocator {
     private const val CHARTS_DIR = "charts"
     private val CASCADE_FILES = setOf("meta.yml", "meta.yaml")
 
+    /** The `charts/` directory that makes this file a board, or null if it isn't one. */
+    fun <D> chartsDir(
+        fileName: String,
+        parent: D?,
+        parentOf: (D) -> D?,
+        nameOf: (D) -> String,
+        hasChild: (D, String) -> Boolean,
+    ): D? {
+        if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) return null
+        if (fileName in CASCADE_FILES) return null
+        var dir = parent
+        while (dir != null) {
+            if (nameOf(dir) == CHARTS_DIR) {
+                val root = parentOf(dir)
+                if (root != null && hasChild(root, PROJECT_FILE)) return dir
+            }
+            dir = parentOf(dir)
+        }
+        return null
+    }
+
     fun <D> isBoard(
         fileName: String,
         parent: D?,
         parentOf: (D) -> D?,
         nameOf: (D) -> String,
         hasChild: (D, String) -> Boolean,
-    ): Boolean {
-        if (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml")) return false
-        if (fileName in CASCADE_FILES) return false
-        var dir = parent
-        while (dir != null) {
-            if (nameOf(dir) == CHARTS_DIR) {
-                val root = parentOf(dir)
-                if (root != null && hasChild(root, PROJECT_FILE)) return true
-            }
-            dir = parentOf(dir)
-        }
-        return false
-    }
+    ): Boolean = chartsDir(fileName, parent, parentOf, nameOf, hasChild) != null
 
-    fun isBoardFile(file: VirtualFile): Boolean =
-        isBoard(file.name, file.parent, { it.parent }, { it.name }, { dir, name -> dir.findChild(name) != null })
+    fun chartsDirOf(file: VirtualFile): VirtualFile? =
+        chartsDir(file.name, file.parent, { it.parent }, { it.name }, { dir, name -> dir.findChild(name) != null })
+
+    fun isBoardFile(file: VirtualFile): Boolean = chartsDirOf(file) != null
 }
