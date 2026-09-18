@@ -28,6 +28,9 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JTextArea
+import org.cef.browser.CefBrowser
+import org.cef.browser.CefFrame
+import org.cef.handler.CefLoadHandlerAdapter
 
 /**
  * Shows a board as rendered by `dct serve`. The page reloads itself through dct's livereload
@@ -74,8 +77,17 @@ class DbtChartsPreviewEditor(
     private var lease: Disposable? = null
     private var active = false
 
+    /** Set when the shown page is an error page without dct's livereload (see [DctPageStatus]). */
+    @Volatile
+    private var needsManualReload = false
+
     init {
         Disposer.register(this, browser)
+        browser.jbCefClient.addLoadHandler(object : CefLoadHandlerAdapter() {
+            override fun onLoadEnd(cefBrowser: CefBrowser, frame: CefFrame, httpStatusCode: Int) {
+                if (frame.isMain) needsManualReload = DctPageStatus.needsManualReload(httpStatusCode)
+            }
+        }, browser.cefBrowser)
         FileDocumentManager.getInstance().getDocument(file)?.let { document ->
             document.addDocumentListener(object : DocumentListener {
                 override fun documentChanged(event: DocumentEvent) {
@@ -83,6 +95,7 @@ class DbtChartsPreviewEditor(
                     saveAlarm.cancelAllRequests()
                     saveAlarm.addRequest({
                         WriteIntentReadAction.run(Runnable { FileDocumentManager.getInstance().saveDocument(document) })
+                        if (needsManualReload) browser.cefBrowser.reload()
                     }, SAVE_DELAY_MS)
                 }
             }, this)
