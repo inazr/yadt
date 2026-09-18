@@ -20,6 +20,8 @@ import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.FlowLayout
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.beans.PropertyChangeListener
 import java.nio.file.Path
 import javax.swing.JButton
@@ -31,6 +33,12 @@ import javax.swing.JTextArea
  * Shows a board as rendered by `dct serve`. The page reloads itself through dct's livereload
  * whenever the file on disk changes, so this editor only saves the document after a typing pause
  * and loads the board URL; startup/failure messages replace the browser with a status panel.
+ *
+ * Works only while the preview is visible: in the "Editor only" layout it releases its server lease,
+ * blanks the page (dropping livereload) and stops saving, so hidden boards never re-run warehouse
+ * queries. Visibility is the signal because TextEditorWithPreview applies every layout — toolbar,
+ * restored state or the remembered default — through the preview component's `isVisible`, while
+ * `onLayoutChange` only fires for the toolbar.
  */
 class DbtChartsPreviewEditor(
     private val project: Project,
@@ -55,15 +63,23 @@ class DbtChartsPreviewEditor(
         }
         add(status, STATUS)
         add(browser.component, BROWSER)
+        // Hidden until the host's layout shows it, so "Editor only" never fires componentShown.
+        isVisible = false
+        addComponentListener(object : ComponentAdapter() {
+            override fun componentShown(e: ComponentEvent) = resume()
+            override fun componentHidden(e: ComponentEvent) = pause()
+        })
     }
     private val saveAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private var lease: Disposable? = null
+    private var active = false
 
     init {
         Disposer.register(this, browser)
         FileDocumentManager.getInstance().getDocument(file)?.let { document ->
             document.addDocumentListener(object : DocumentListener {
                 override fun documentChanged(event: DocumentEvent) {
+                    if (!active) return
                     saveAlarm.cancelAllRequests()
                     saveAlarm.addRequest({
                         WriteIntentReadAction.run(Runnable { FileDocumentManager.getInstance().saveDocument(document) })
@@ -71,7 +87,22 @@ class DbtChartsPreviewEditor(
                 }
             }, this)
         }
+    }
+
+    private fun resume() {
+        if (active) return
+        active = true
         connect()
+    }
+
+    private fun pause() {
+        if (!active) return
+        active = false
+        saveAlarm.cancelAllRequests()
+        lease?.let(Disposer::dispose)
+        lease = null
+        browser.loadURL("about:blank")
+        showStatus("Preview paused.", retryable = false)
     }
 
     private fun connect() {
