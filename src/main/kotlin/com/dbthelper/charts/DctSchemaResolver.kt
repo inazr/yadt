@@ -54,7 +54,7 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
     }
 
     private fun resolveLocal(): Path? {
-        val dct = findDct() ?: return null
+        val dct = DctExecutable.find(project) ?: return null
         val candidates = DctVenvLocator.venvCandidates(dct, uvToolDir(), Path.of(System.getProperty("user.home")))
         val dir = DctVenvLocator.findSchemaDir(candidates) ?: return null
         return newestVerified(dir)
@@ -73,11 +73,6 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
             return null
         }
         return file
-    }
-
-    private fun findDct(): Path? {
-        val configured = DbtHelperSettings.getInstance(project).state.dctExecutablePath
-        return ExecutableLocator.find("dct", configured)?.takeIf { Files.isRegularFile(it) }
     }
 
     private fun uvToolDir(): Path? {
