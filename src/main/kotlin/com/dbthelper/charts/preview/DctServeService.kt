@@ -13,7 +13,9 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +52,7 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
         fun stop() {
             stopped = true
             startup.cancel()
-            process?.let(::destroyTree)
+            process?.let(::stopProcess)
             runCatching { Files.deleteIfExists(log) }
         }
     }
@@ -58,20 +60,22 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
     /**
      * Reports on a background thread: [DctServeResult.Ready] or [DctServeResult.Failed] once the
      * server answers or gives up, then a further `Failed` if a ready server dies while leased.
+     * The watcher that reports the second `Failed` is tied to [lease]: it stops as soon as the
+     * lease is disposed, even if the underlying server keeps running for other leases.
      */
     fun acquire(root: Path, lease: Disposable, onResult: (DctServeResult) -> Unit) {
         val server = synchronized(servers) {
             servers[root]?.takeIf { it.isDead }?.let { servers.remove(root); it.stop() }
             servers.getOrPut(root) { Server(root) }.also { it.leases++ }
         }
-        Disposer.register(lease) { release(server) }
-        cs.launch {
+        val job = cs.launch {
             val result = server.startup.await()
             onResult(result)
             if (result !is DctServeResult.Ready) return@launch
             server.process?.onExit()?.await()
             if (!server.stopped) onResult(DctServeResult.Failed("dct serve stopped unexpectedly.\n${logTail(server.log)}"))
         }
+        Disposer.register(lease) { job.cancel(); release(server) }
     }
 
     private fun release(server: Server) {
@@ -82,7 +86,17 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
         server.stop()
     }
 
-    private suspend fun start(server: Server): DctServeResult {
+    /** Wraps [startProcess]: any unexpected exception (not cancellation) is a `Failed`, not a stuck Deferred. */
+    private suspend fun start(server: Server): DctServeResult = try {
+        startProcess(server)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        logger.warn("dct serve failed to start for ${server.root}", e)
+        DctServeResult.Failed("dct serve failed to start: ${e.message}")
+    }
+
+    private suspend fun startProcess(server: Server): DctServeResult {
         val dct = DctExecutable.find(project) ?: return DctServeResult.Failed(DCT_NOT_FOUND)
         val port = try {
             NetUtils.findAvailableSocketPort()
@@ -101,7 +115,7 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
         }
         server.process = process
         if (server.stopped) {
-            destroyTree(process)
+            stopProcess(process)
             return DctServeResult.Failed("Preview closed.")
         }
         val deadline = System.nanoTime() + STARTUP_TIMEOUT.inWholeNanoseconds
@@ -112,7 +126,7 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
             if (responds(port)) return DctServeResult.Ready(port)
             delay(POLL_INTERVAL_MS)
         }
-        destroyTree(process)
+        stopProcess(process)
         return DctServeResult.Failed("dct serve did not answer within ${STARTUP_TIMEOUT.inWholeSeconds} s.\n${logTail(server.log)}")
     }
 
@@ -135,6 +149,29 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
         process.destroy()
     }
 
+    private fun destroyForciblyTree(process: Process) {
+        process.toHandle().descendants().forEach { it.destroyForcibly() }
+        process.destroyForcibly()
+    }
+
+    /**
+     * SIGTERM, then SIGKILL if [process] (or a descendant) is still alive after [STOP_GRACE]. The
+     * wait runs on [cs] so a caller on the EDT (lease disposal) never blocks; it survives
+     * cancellation of the server's own `startup` job since it is launched on the service scope.
+     */
+    private fun stopProcess(process: Process) {
+        destroyTree(process)
+        cs.launch(Dispatchers.IO) {
+            val exited = try {
+                process.waitFor(STOP_GRACE.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                false
+            }
+            if (!exited) destroyForciblyTree(process)
+        }
+    }
+
     private fun logTail(log: Path): String =
         runCatching { Files.readAllLines(log).takeLast(LOG_TAIL_LINES).joinToString("\n") }.getOrDefault("")
 
@@ -145,6 +182,7 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
 
     companion object {
         private val STARTUP_TIMEOUT = 30.seconds
+        private val STOP_GRACE = 2.seconds
         private const val POLL_INTERVAL_MS = 250L
         private const val LOG_TAIL_LINES = 15
         private const val DCT_NOT_FOUND =
