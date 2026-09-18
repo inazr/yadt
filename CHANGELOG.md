@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- New: **dbt Charts board preview.** Board files open in a split editor like Markdown: YAML on the left, the board rendered by your own `dct serve` on the right, with the usual Editor / Split / Preview switch. The preview refreshes about a second after you stop typing (YADT saves the board for you), and edits to `meta.yml` files refresh open previews too. Queries run against your warehouse exactly as `dct serve` would. Needs `dct` installed and an IDE with JCEF; otherwise boards open in the plain editor
+- New: **dbt Charts board preview.** Board files open in a split editor like Markdown: YAML on the left, the board rendered by your own `dct serve` on the right, with the usual Editor / Split / Preview switch. The preview refreshes about a second after you stop typing (YADT saves the board for you), and edits to `meta.yml` files refresh open previews too. Queries run against your warehouse exactly as `dct serve` would. Needs an IDE with JCEF (otherwise boards open in the plain editor) and `dct` installed (otherwise the preview pane says so, with a Retry button)
 
 ## [0.7.0] - 2026-09-17
 
