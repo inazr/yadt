@@ -88,6 +88,11 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
         <postStartupActivity implementation="com.dbthelper.listeners.RunResultsWatcherStarter"/>
         <postStartupActivity implementation="com.dbthelper.charts.DbtChartsSchemaStarter"/>
 
+        <!-- dbt Charts board preview (split editor, like Markdown). Registered here, not in
+             yadt-jcef.xml: that sub-descriptor only loads on 262+, the preview must work from 251.
+             The provider checks JBCefApp.isSupported() before any JCEF class is touched. -->
+        <fileEditorProvider implementation="com.dbthelper.charts.preview.DbtChartsPreviewEditorProvider"/>
+
         <!-- Tool Window -->
         <toolWindow id="YADT"
                     anchor="bottom"

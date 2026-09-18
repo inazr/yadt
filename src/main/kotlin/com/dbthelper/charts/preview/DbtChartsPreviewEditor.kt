@@ -1,0 +1,120 @@
+package com.dbthelper.charts.preview
+
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.WriteIntentReadAction
+import com.intellij.openapi.editor.event.DocumentEvent
+import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.fileEditor.FileEditor
+import com.intellij.openapi.fileEditor.FileEditorState
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.UserDataHolderBase
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.jcef.JBCefBrowser
+import com.intellij.util.Alarm
+import com.intellij.util.ui.JBUI
+import java.awt.BorderLayout
+import java.awt.CardLayout
+import java.awt.FlowLayout
+import java.beans.PropertyChangeListener
+import java.nio.file.Path
+import javax.swing.JButton
+import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.JTextArea
+
+/**
+ * Shows a board as rendered by `dct serve`. The page reloads itself through dct's livereload
+ * whenever the file on disk changes, so this editor only saves the document after a typing pause
+ * and loads the board URL; startup/failure messages replace the browser with a status panel.
+ */
+class DbtChartsPreviewEditor(
+    private val project: Project,
+    private val file: VirtualFile,
+    private val root: Path,
+    private val boardUrl: String,
+) : UserDataHolderBase(), FileEditor {
+
+    private val browser = JBCefBrowser()
+    private val message = JTextArea().apply {
+        isEditable = false
+        lineWrap = true
+        wrapStyleWord = true
+        border = JBUI.Borders.empty(12)
+    }
+    private val retry = JButton("Retry").apply { addActionListener { connect() } }
+    private val cards = CardLayout()
+    private val component = JPanel(cards).apply {
+        val status = JPanel(BorderLayout()).apply {
+            add(JBScrollPane(message), BorderLayout.CENTER)
+            add(JPanel(FlowLayout(FlowLayout.LEFT)).apply { add(retry) }, BorderLayout.SOUTH)
+        }
+        add(status, STATUS)
+        add(browser.component, BROWSER)
+    }
+    private val saveAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+    private var lease: Disposable? = null
+
+    init {
+        Disposer.register(this, browser)
+        FileDocumentManager.getInstance().getDocument(file)?.let { document ->
+            document.addDocumentListener(object : DocumentListener {
+                override fun documentChanged(event: DocumentEvent) {
+                    saveAlarm.cancelAllRequests()
+                    saveAlarm.addRequest({
+                        WriteIntentReadAction.run(Runnable { FileDocumentManager.getInstance().saveDocument(document) })
+                    }, SAVE_DELAY_MS)
+                }
+            }, this)
+        }
+        connect()
+    }
+
+    private fun connect() {
+        lease?.let(Disposer::dispose)
+        val current = Disposer.newDisposable(this, "dct serve lease")
+        lease = current
+        showStatus("Starting dct serve…", retryable = false)
+        DctServeService.getInstance(project).acquire(root, current) { result ->
+            ApplicationManager.getApplication().invokeLater({ show(result) }, ModalityState.nonModal()) { lease !== current }
+        }
+    }
+
+    private fun show(result: DctServeResult) = when (result) {
+        is DctServeResult.Ready -> {
+            browser.loadURL("http://127.0.0.1:${result.port}$boardUrl")
+            cards.show(component, BROWSER)
+        }
+        is DctServeResult.Failed -> showStatus(result.message, retryable = true)
+    }
+
+    private fun showStatus(text: String, retryable: Boolean) {
+        message.text = text
+        retry.isVisible = retryable
+        cards.show(component, STATUS)
+    }
+
+    override fun getComponent(): JComponent = component
+    override fun getPreferredFocusedComponent(): JComponent = browser.component
+    override fun getName(): String = "dbt Charts Preview"
+    override fun getFile(): VirtualFile = file
+    override fun setState(state: FileEditorState) = Unit
+    override fun isModified(): Boolean = false
+    override fun isValid(): Boolean = file.isValid
+    override fun addPropertyChangeListener(listener: PropertyChangeListener) = Unit
+    override fun removePropertyChangeListener(listener: PropertyChangeListener) = Unit
+
+    override fun dispose() {
+        lease = null
+    }
+
+    private companion object {
+        const val STATUS = "status"
+        const val BROWSER = "browser"
+        const val SAVE_DELAY_MS = 1000
+    }
+}
