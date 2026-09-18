@@ -90,7 +90,9 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
 
         <!-- dbt Charts board preview (split editor, like Markdown). Registered here, not in
              yadt-jcef.xml: that sub-descriptor only loads on 262+, the preview must work from 251.
-             The provider checks JBCefApp.isSupported() before any JCEF class is touched. -->
+             Without JCEF support (JBCefApp.isSupported() false) boards open in the plain editor;
+             if the JCEF plugin is disabled on 262+, accept() fails with a logged error and the
+             plain editor is used too. -->
         <fileEditorProvider implementation="com.dbthelper.charts.preview.DbtChartsPreviewEditorProvider"/>
 
         <!-- Tool Window -->

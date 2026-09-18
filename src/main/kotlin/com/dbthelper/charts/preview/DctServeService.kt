@@ -7,6 +7,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.net.NetUtils
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -44,10 +45,17 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
         var leases = 0
         @Volatile var process: Process? = null
         @Volatile var stopped = false
+        @Volatile var result: DctServeResult? = null
         val log: Path = Files.createTempFile("yadt-dct-serve", ".log")
-        val startup: Deferred<DctServeResult> = cs.async(Dispatchers.IO) { start(this@Server) }
+        val startup: Deferred<DctServeResult> = cs.async(Dispatchers.IO) { start(this@Server).also { result = it } }
 
-        val isDead: Boolean get() = startup.isCompleted && process?.isAlive != true
+        /**
+         * True once startup has finished and either it didn't end in [DctServeResult.Ready] (a
+         * timed-out start still SIGTERM's the process but may leave it alive through the grace
+         * period) or the process is no longer alive. Either way a cached [Failed] must not be
+         * reused by the next [acquire] — that's what Retry relies on.
+         */
+        val isDead: Boolean get() = startup.isCompleted && (result !is DctServeResult.Ready || process?.isAlive != true)
 
         fun stop() {
             stopped = true
@@ -93,6 +101,7 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
         throw e
     } catch (e: Exception) {
         logger.warn("dct serve failed to start for ${server.root}", e)
+        server.process?.let(::stopProcess)
         DctServeResult.Failed("dct serve failed to start: ${e.message}")
     }
 
@@ -155,21 +164,19 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
     }
 
     /**
-     * SIGTERM, then SIGKILL if [process] (or a descendant) is still alive after [STOP_GRACE]. The
-     * wait runs on [cs] so a caller on the EDT (lease disposal) never blocks; it survives
-     * cancellation of the server's own `startup` job since it is launched on the service scope.
+     * SIGTERM immediately and synchronously, then SIGKILL if [process] (or a descendant) is still
+     * alive after [STOP_GRACE]. The wait runs on a platform scheduled executor, not [cs]: on
+     * project close, `ComponentManagerImpl.dispose()` cancels the container scope *before* calling
+     * this service's `dispose()`, so a `cs.launch`'d escalation would never run. The scheduled task
+     * still never blocks the caller (EDT on lease disposal, or the service's own dispose thread).
      */
     private fun stopProcess(process: Process) {
         destroyTree(process)
-        cs.launch(Dispatchers.IO) {
-            val exited = try {
-                process.waitFor(STOP_GRACE.inWholeMilliseconds, TimeUnit.MILLISECONDS)
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-                false
-            }
-            if (!exited) destroyForciblyTree(process)
-        }
+        AppExecutorUtil.getAppScheduledExecutorService().schedule(
+            { if (process.isAlive) destroyForciblyTree(process) },
+            STOP_GRACE.inWholeMilliseconds,
+            TimeUnit.MILLISECONDS,
+        )
     }
 
     private fun logTail(log: Path): String =
