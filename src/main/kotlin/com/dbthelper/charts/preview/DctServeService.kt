@@ -1,6 +1,7 @@
 package com.dbthelper.charts.preview
 
 import com.dbthelper.charts.DctExecutable
+import com.dbthelper.settings.DbtHelperSettings
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -41,7 +42,7 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
     private val logger = Logger.getInstance(DctServeService::class.java)
     private val servers = HashMap<Path, Server>()
 
-    private inner class Server(val root: Path) {
+    private inner class Server(val root: Path, val target: String) {
         var leases = 0
         @Volatile var process: Process? = null
         @Volatile var stopped = false
@@ -73,8 +74,10 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
      */
     fun acquire(root: Path, lease: Disposable, onResult: (DctServeResult) -> Unit) {
         val server = synchronized(servers) {
-            servers[root]?.takeIf { it.isDead }?.let { servers.remove(root); it.stop() }
-            servers.getOrPut(root) { Server(root) }.also { it.leases++ }
+            val target = DbtHelperSettings.getInstance(project).state.activeTarget
+            // A server on another dbt target is stale too: its previews reconnect on a target change.
+            servers[root]?.takeIf { it.isDead || it.target != target }?.let { servers.remove(root); it.stop() }
+            servers.getOrPut(root) { Server(root, target) }.also { it.leases++ }
         }
         val job = cs.launch {
             val result = server.startup.await()
@@ -113,7 +116,7 @@ class DctServeService(private val project: Project, private val cs: CoroutineSco
             return DctServeResult.Failed("No free local port for dct serve: ${e.message}")
         }
         val process = try {
-            ProcessBuilder(DctServeCommand.args(dct, server.root, port))
+            ProcessBuilder(DctServeCommand.args(dct, server.root, port, server.target))
                 .directory(server.root.toFile())
                 .redirectErrorStream(true)
                 .redirectOutput(server.log.toFile())

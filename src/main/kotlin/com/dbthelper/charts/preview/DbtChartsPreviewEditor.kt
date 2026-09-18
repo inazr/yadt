@@ -1,5 +1,7 @@
 package com.dbthelper.charts.preview
 
+import com.dbthelper.settings.DbtHelperSettings
+import com.dbthelper.settings.SettingsChangeListener
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
@@ -76,6 +78,8 @@ class DbtChartsPreviewEditor(
     private val saveAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private var lease: Disposable? = null
     private var active = false
+    private var connectedTarget: String? = null
+    private var disposed = false
 
     /** Set when the shown page is an error page without dct's livereload (see [DctPageStatus]). */
     @Volatile
@@ -88,6 +92,14 @@ class DbtChartsPreviewEditor(
                 if (frame.isMain) needsManualReload = DctPageStatus.needsManualReload(httpStatusCode)
             }
         }, browser.cefBrowser)
+        // The server runs on the Runner's dbt target; a new target needs a new server.
+        project.messageBus.connect(this).subscribe(SettingsChangeListener.TOPIC, object : SettingsChangeListener {
+            override fun onSettingsChanged() {
+                ApplicationManager.getApplication().invokeLater({
+                    if (active && connectedTarget != currentTarget()) connect()
+                }, ModalityState.nonModal()) { disposed }
+            }
+        })
         FileDocumentManager.getInstance().getDocument(file)?.let { document ->
             document.addDocumentListener(object : DocumentListener {
                 override fun documentChanged(event: DocumentEvent) {
@@ -122,11 +134,14 @@ class DbtChartsPreviewEditor(
         lease?.let(Disposer::dispose)
         val current = Disposer.newDisposable(this, "dct serve lease")
         lease = current
+        connectedTarget = currentTarget()
         showStatus("Starting dct serve…", retryable = false)
         DctServeService.getInstance(project).acquire(root, current) { result ->
             ApplicationManager.getApplication().invokeLater({ show(result) }, ModalityState.nonModal()) { lease !== current }
         }
     }
+
+    private fun currentTarget(): String = DbtHelperSettings.getInstance(project).state.activeTarget
 
     private fun show(result: DctServeResult) = when (result) {
         is DctServeResult.Ready -> {
@@ -153,6 +168,7 @@ class DbtChartsPreviewEditor(
     override fun removePropertyChangeListener(listener: PropertyChangeListener) = Unit
 
     override fun dispose() {
+        disposed = true
         lease = null
     }
 
