@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- New: **dbt Charts board preview.** Board files open in a split editor like Markdown: YAML on the left, the board rendered by your own `dct serve` on the right, with the usual Editor / Split / Preview switch. The preview refreshes about a second after you stop typing (YADT saves the board for you), and edits to `meta.yml` files refresh open previews too. Queries run against your warehouse exactly as `dct serve` would. Needs `dct` installed and an IDE with JCEF; otherwise boards open in the plain editor
+
 ## [0.7.0] - 2026-09-17
 
 - Lineage: zooming no longer speeds up the longer the tool window is open. The wheel, zoom-button and keyboard zoom handlers were attached again on every graph render, so after N re-renders a single scroll tick or click zoomed N times; they are now attached once
