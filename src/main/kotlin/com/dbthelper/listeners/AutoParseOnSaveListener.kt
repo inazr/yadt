@@ -2,6 +2,7 @@ package com.dbthelper.listeners
 
 import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.actions.DbtEngine
+import com.dbthelper.charts.DbtChartsBoardLocator
 import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.DbtRunState
 import com.dbthelper.core.toUnixPath
@@ -37,8 +38,11 @@ class AutoParseOnSaveListener(private val project: Project) : BulkFileListener {
     override fun after(events: List<VFileEvent>) {
         if (!DbtHelperSettings.getInstance(project).state.autoParseOnSave) return
         val root = DbtProjectLocator.getInstance(project).findProjectRoot()?.path ?: return
+        // dbt Charts boards aren't dbt resources, and the board preview saves them on every typing
+        // pause: a parse per pause would rewrite manifest.json while dct is reading it.
         val relevant = events.any { event ->
-            event is VFileContentChangeEvent && isRelevant(event.path, root)
+            event is VFileContentChangeEvent && isRelevant(event.path, root) &&
+                !DbtChartsBoardLocator.isBoardFile(event.file)
         }
         if (relevant) debounce.restart()
     }
