@@ -86,6 +86,7 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
     <extensions defaultExtensionNs="com.intellij">
         <!-- Project services are light services (@Service) and must not be registered here. -->
         <postStartupActivity implementation="com.dbthelper.listeners.RunResultsWatcherStarter"/>
+        <postStartupActivity implementation="com.dbthelper.listeners.AutoParseOnStartup"/>
         <postStartupActivity implementation="com.dbthelper.charts.DbtChartsSchemaStarter"/>
 
         <!-- dbt Charts board preview (split editor, like Markdown). Registered here, not in
