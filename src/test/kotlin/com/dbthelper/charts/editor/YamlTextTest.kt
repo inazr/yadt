@@ -10,9 +10,16 @@ class YamlTextTest {
         assertEquals("Delivered volume", YamlText.scalar("Delivered volume"))
         assertEquals("category[2]", YamlText.scalar("category[2]"))
         assertEquals("600", YamlText.scalar("600"))
+        assertEquals("true", YamlText.scalar("true"))
         assertEquals("\"#FFFFFF\"", YamlText.scalar("#FFFFFF"))
         assertEquals("\"a: b\"", YamlText.scalar("a: b"))
         assertEquals("\"\"", YamlText.scalar(""))
+    }
+
+    @Test
+    fun `values that would change YAML structure are quoted even when otherwise plain`() {
+        assertEquals("\"[2]\"", YamlText.scalar("[2]"))
+        assertEquals("\"- a\"", YamlText.scalar("- a"))
     }
 
     @Test
