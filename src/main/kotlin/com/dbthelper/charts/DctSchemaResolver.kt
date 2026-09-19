@@ -43,8 +43,9 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
 
     fun refresh(): Job = cs.launch(Dispatchers.IO) {
         refreshLock.withLock {
-            val resolved = resolveLocal()
+            val source = resolveLocal()
                 ?: if (DbtHelperSettings.getInstance(project).state.downloadChartsSchema) resolveDownloaded() else null
+            val resolved = source?.let(::patchedCopy)
             if (resolved == schemaPath) return@withLock
             schemaFile = resolved?.let { LocalFileSystem.getInstance().refreshAndFindFileByNioFile(it) }
             schemaPath = resolved
@@ -58,6 +59,22 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
         val candidates = DctVenvLocator.venvCandidates(dct, uvToolDir(), Path.of(System.getProperty("user.home")))
         val dir = DctVenvLocator.findSchemaDir(candidates) ?: return null
         return newestVerified(dir)
+    }
+
+    /**
+     * The IDE gets a [DctSchemaPatcher]-rewritten copy, never dct's file itself; null (no schema)
+     * if the copy can't be written.
+     */
+    private fun patchedCopy(source: Path): Path? = try {
+        val dir = Files.createDirectories(Path.of(PathManager.getSystemPath(), "yadt", "dbt-charts-schema-patched"))
+        val target = dir.resolve(source.fileName)
+        val part = Files.createTempFile(dir, source.fileName.toString(), ".part")
+        Files.writeString(part, DctSchemaPatcher.patch(Files.readString(source)))
+        Files.move(part, target, StandardCopyOption.REPLACE_EXISTING)
+        target
+    } catch (e: Exception) {
+        logger.warn("Could not prepare the dbt Charts schema from $source", e)
+        null
     }
 
     private fun newestVerified(dir: Path): Path? {
