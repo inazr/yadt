@@ -11,8 +11,6 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.ui.JBColor
 import org.jetbrains.yaml.psi.YAMLKeyValue
-import org.jetbrains.yaml.psi.YAMLMapping
-import org.jetbrains.yaml.psi.YAMLSequenceItem
 
 /**
  * Keeps every schema suggestion for a chart's `type:` but greys out, and sorts last, the types that
@@ -28,7 +26,7 @@ class DbtChartsTypeCompletionContributor : CompletionContributor(), DumbAware {
         val keyValue = PsiTreeUtil.getParentOfType(parameters.position, YAMLKeyValue::class.java) ?: return
         if (keyValue.keyText != "type") return
         val chart = keyValue.parentMapping ?: return
-        if (!isChart(chart)) return
+        if (!DbtChartsYaml.isChartMapping(chart)) return
         val types = DctSchemaResolver.getInstance(parameters.originalFile.project).chartTypes
         if (types.isEmpty()) return
 
@@ -44,18 +42,6 @@ class DbtChartsTypeCompletionContributor : CompletionContributor(), DumbAware {
                 },
             )
         }
-    }
-
-    /**
-     * A chart is a mapping that is the value of an entry under `charts:`, or of an entry in a layout
-     * list item (`rows: - chart_id: {…}`). Query and source mappings also have a `type:`; they never
-     * sit there.
-     */
-    private fun isChart(mapping: YAMLMapping): Boolean {
-        val entry = mapping.parent as? YAMLKeyValue ?: return false
-        val container = entry.parentMapping ?: return false
-        val containerEntry = container.parent
-        return (containerEntry is YAMLKeyValue && containerEntry.keyText == "charts") || containerEntry is YAMLSequenceItem
     }
 
     private class Unfit(delegate: LookupElement, private val mismatch: DctChartTypes.Mismatch) :
