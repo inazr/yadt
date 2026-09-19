@@ -200,5 +200,7 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
                   topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
         <listener class="com.dbthelper.listeners.AutoParseOnSaveListener"
                   topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
+        <listener class="com.dbthelper.listeners.AutoParseOnTargetChange"
+                  topic="com.dbthelper.settings.SettingsChangeListener"/>
     </projectListeners>
 </idea-plugin>
