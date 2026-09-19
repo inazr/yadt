@@ -14,5 +14,8 @@
                                     implementationClass="com.dbthelper.codeintel.DbtDocumentationProvider"/>
         <annotator language="yaml"
                    implementationClass="com.dbthelper.codeintel.DbtAnnotator"/>
+        <!-- order="first": it wraps the JSON-schema suggestions via runRemainingContributors. -->
+        <completion.contributor language="yaml" order="first"
+                                implementationClass="com.dbthelper.charts.DbtChartsTypeCompletionContributor"/>
     </extensions>
 </idea-plugin>

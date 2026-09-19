@@ -41,6 +41,11 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
     var schemaFile: VirtualFile? = null
         private set
 
+    /** Chart types of the current schema with their fields; empty without a schema. */
+    @Volatile
+    var chartTypes: Map<String, DctChartTypes.ChartType> = emptyMap()
+        private set
+
     fun refresh(): Job = cs.launch(Dispatchers.IO) {
         refreshLock.withLock {
             val source = resolveLocal()
@@ -48,6 +53,7 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
             val resolved = source?.let(::patchedCopy)
             if (resolved == schemaPath) return@withLock
             schemaFile = resolved?.let { LocalFileSystem.getInstance().refreshAndFindFileByNioFile(it) }
+            chartTypes = resolved?.let { runCatching { DctChartTypes.parse(Files.readString(it)) }.getOrNull() }.orEmpty()
             schemaPath = resolved
             logger.info("dbt Charts board schema: ${resolved ?: "none"}")
             project.messageBus.syncPublisher(DctSchemaListener.TOPIC).onSchemaChanged(resolved)
