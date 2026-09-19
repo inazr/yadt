@@ -16,7 +16,7 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 - **Docs sidebar** — columns, tests, SQL, and metadata for the selected model, side-by-side with the graph.
 - **Code intelligence** — autocomplete and go-to-definition for `ref()`, `source()`, and `macro()`; hover for column info; warnings on unresolved references. Works in `.sql` and Jinja files, and in dbt Charts boards.
 - **Potentially terminal columns** — a gutter icon in the `.sql` model file marks output columns that no downstream model or exposure reads. It's a heuristic over direct children and exposures; columns it can't pin to a line collapse into a single file-level marker.
-- **dbt Charts boards** — completion, hover docs, and structural errors for [dbt Charts](https://dbtcharts.com) board YAML, driven by the schema of your installed `dct`; plus `ref()` / `source()` intelligence inside board queries. See [dbt Charts boards](#dbt-charts-boards).
+- **dbt Charts boards** — completion, hover docs, and structural errors for [dbt Charts](https://dbtcharts.com) board YAML, driven by the schema of your installed `dct`; `ref()` / `source()` intelligence inside board queries; and a live preview rendered by `dct serve`. See [dbt Charts boards](#dbt-charts-boards).
 - **Runner** — run, test, compile, preview, and regenerate docs without leaving the IDE. Target selector and live output log.
 - **Editor actions** — in the **YADT** submenu of the editor's right-click menu (and under **Edit**):
   - **Copy for Target DB** — copy SQL with refs resolved to `db.schema.table`
@@ -68,7 +68,7 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 | Show test failure badge | Red failure-count badge on cards with failed tests | on |
 | Send system notifications | Native OS notification when dbt commands finish | on |
 | Colored dbt output | Pass `--use-colors`; render ANSI in the Runner panel | off |
-| Auto-parse on save | Background `dbt parse` after saving a model/YAML | on |
+| Auto-parse on save | Background `dbt parse` with the active target after saving a model/YAML (not dbt Charts boards), when the target changes, and when the project opens | on |
 | Auto-parse also for dbt Cloud CLI | Also auto-parse via dbt Cloud CLI (network per save) | off |
 
 ---
@@ -81,6 +81,7 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 
 **What you get in a board:**
 - **Schema-backed editing** — completion for board, query, and chart keys, hover descriptions, and structural errors (e.g. an unknown chart `type`). The status bar shows *Schema: dbt Charts board* when it is active.
+- **Chart type hints** — completion for a chart's `type:` lists every chart type; types that don't fit the chart's current fields are greyed out and listed last, with the reason (e.g. *not allowed: color, sort* or *missing: value*).
 - **dbt code intelligence in queries** — `ref()` / `source()` completion, Cmd/Ctrl+Click navigation, hover docs, and unresolved-reference warnings, exactly as in `.sql` models. dbt macro completion is not offered in boards, because `dct` doesn't resolve dbt macros.
 
 **Where the schema comes from:**
@@ -89,7 +90,9 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 
 If neither source yields a schema, board files stay plain YAML and a project containing `dbt_charts.yml` shows a one-time notification.
 
-Rendering boards (`dct serve` / `dct render`) and `dct validate` are not part of the plugin; run them from the terminal.
+**Live preview:** board files open in a split editor like Markdown — YAML on the left, the board rendered by your own `dct serve` on the right, with the usual Editor / Split / Preview switch. The preview refreshes about a second after you stop typing (YADT saves the board for you); edits to `meta.yml` refresh open previews too. Queries run against your warehouse with the target selected in the Runner. In the Editor-only layout the preview is paused: nothing is saved automatically and no queries run. Needs `dct` and an IDE with JCEF; without JCEF boards open in the plain editor.
+
+`dct validate` is not part of the plugin; run it from the terminal.
 
 ---
 

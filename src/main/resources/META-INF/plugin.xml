@@ -38,6 +38,8 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
 <ul>
   <li>Completion, hover docs and structural errors for <a href="https://dbtcharts.com">dbt Charts</a> board YAML, from the schema of your installed <code>dct</code> (or an opt-in verified download)</li>
   <li><code>ref()</code> / <code>source()</code> completion, go to definition, hover docs and unresolved-reference warnings inside board queries</li>
+  <li><b>Live preview</b> — boards open in a split editor like Markdown, rendered by your own <code>dct serve</code> and refreshed as you type</li>
+  <li><b>Chart type hints</b> — chart types that don't fit a chart's fields are greyed out in completion, with the reason</li>
 </ul>
 
 <h3>Runner</h3>
