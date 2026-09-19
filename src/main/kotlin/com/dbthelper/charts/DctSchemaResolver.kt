@@ -70,8 +70,7 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
         val dct = DctExecutable.find(project) ?: return null
         val candidates = DctVenvLocator.venvCandidates(dct, uvToolDir(), Path.of(System.getProperty("user.home")))
         val dir = DctVenvLocator.findSchemaDir(candidates) ?: return null
-        dctPackageDir = dir.parent?.parent?.parent
-        return newestVerified(dir)
+        return newestVerified(dir)?.also { dctPackageDir = dir.parent?.parent?.parent }
     }
 
     /**
