@@ -41,6 +41,11 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
     var schemaFile: VirtualFile? = null
         private set
 
+    /** The `dbt_charts` directory of the local dct; null for the download fallback. */
+    @Volatile
+    var dctPackageDir: Path? = null
+        private set
+
     /** Chart types of the current schema with their fields; empty without a schema. */
     @Volatile
     var chartTypes: Map<String, DctChartTypes.ChartType> = emptyMap()
@@ -48,6 +53,7 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
 
     fun refresh(): Job = cs.launch(Dispatchers.IO) {
         refreshLock.withLock {
+            dctPackageDir = null
             val source = resolveLocal()
                 ?: if (DbtHelperSettings.getInstance(project).state.downloadChartsSchema) resolveDownloaded() else null
             val resolved = source?.let(::patchedCopy)
@@ -64,6 +70,7 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
         val dct = DctExecutable.find(project) ?: return null
         val candidates = DctVenvLocator.venvCandidates(dct, uvToolDir(), Path.of(System.getProperty("user.home")))
         val dir = DctVenvLocator.findSchemaDir(candidates) ?: return null
+        dctPackageDir = dir.parent?.parent?.parent
         return newestVerified(dir)
     }
 
