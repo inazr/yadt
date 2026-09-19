@@ -73,7 +73,7 @@ class AutoParseOnSaveListener(private val project: Project) : BulkFileListener {
             if (root == null) { parsing.set(false); return@executeOnPooledThread }
             val exe = runner.findDbtExecutable()
 
-            runner.runCommand(listOf(exe, "parse"), File(root), object : DbtCommandRunner.OutputListener {
+            runner.runCommand(parseCommand(exe, settings.state.activeTarget), File(root), object : DbtCommandRunner.OutputListener {
                 override fun onLine(line: String) {} // silent — do not touch the Runner log
                 override fun onFinished(result: DbtCommandRunner.CommandResult) {
                     if (!result.success) {
@@ -85,5 +85,11 @@ class AutoParseOnSaveListener(private val project: Project) : BulkFileListener {
                 }
             })
         }
+    }
+
+    companion object {
+        /** Parses with the dbt target selected in YADT, so the manifest's relations match it. */
+        fun parseCommand(exe: String, target: String): List<String> =
+            listOf(exe, "parse") + if (target.isBlank()) emptyList() else listOf("--target", target)
     }
 }
