@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-19
+
 - dbt Charts boards: completion for a chart's `type:` offers all chart types again (only `spark_bar` was suggested). Types that don't fit the chart's current fields are greyed out and listed last, with the reason (e.g. "not allowed: color, sort" or "missing: value")
 - **Auto-parse on save** now runs `dbt parse` with the target selected in YADT, so `manifest.json` (and every `ref()` resolved from it, e.g. by dbt Charts) points at that target's relations. Switching the target re-parses right away, and so does opening the project
 - New: **dbt Charts board preview.** Board files open in a split editor like Markdown: YAML on the left, the board rendered by your own `dct serve` on the right, with the usual Editor / Split / Preview switch. The preview refreshes about a second after you stop typing (YADT saves the board for you), and edits to `meta.yml` files refresh open previews too. Queries run against your warehouse exactly as `dct serve` would; in the Editor-only layout the preview is paused, so nothing is saved automatically and no queries run. If `dct` answers with an error page (for example while a SQL string is still open), the preview reloads itself on the next save. The preview runs on the dbt target selected in the Runner, and switches when you change it. Saving a board no longer triggers **Auto-parse on save** (boards aren't dbt resources; the parse rewrote `manifest.json` while dbt Charts was reading it). Needs an IDE with JCEF (otherwise boards open in the plain editor) and `dct` installed (otherwise the preview pane says so, with a Retry button)
@@ -115,7 +117,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/inazr/yadt/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/inazr/yadt/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/inazr/yadt/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/inazr/yadt/compare/v0.5.2...v0.6.0
