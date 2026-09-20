@@ -90,7 +90,9 @@ Works with **IntelliJ IDEA**, **PyCharm**, **DataSpell**, and other JetBrains ID
 
 If neither source yields a schema, board files stay plain YAML and a project containing `dbt_charts.yml` shows a one-time notification.
 
-**Live preview:** board files open in a split editor like Markdown — YAML on the left, the board rendered by your own `dct serve` on the right, with the usual Editor / Split / Preview switch. The preview refreshes about a second after you stop typing (YADT saves the board for you); edits to `meta.yml` refresh open previews too. Queries run against your warehouse with the target selected in the Runner. In the Editor-only layout the preview is paused: nothing is saved automatically and no queries run. Needs `dct` and an IDE with JCEF; without JCEF boards open in the plain editor.
+**Live preview:** preview on the left, Code/Design tabs on the right, the same layout the dbt Charts platform uses. The preview is rendered by your own `dct serve` and refreshes about a second after you stop typing (YADT saves the board for you); edits to `meta.yml` refresh open previews too. Queries run against your warehouse with the target selected in the Runner. A toolbar button hides the preview (remembered across reopens); with it hidden nothing is saved automatically and no queries run. Needs `dct` and an IDE with JCEF; without JCEF boards open in the plain editor.
+
+**Design tab:** a form for the board or the selected chart, generated straight from dct's schema — no hand-written form per chart type. Fields for columns (`x`, `y`, `color`, …) are dropdowns populated from the query's `SELECT` list; values the chart would otherwise inherit from the theme are shown as placeholders rather than duplicated into the YAML; sections such as legends or axes have a visibility toggle; and colour fields open a picker with the active theme's tokens, all of dct's bundled palettes, or a custom hex. Every edit is written straight into the YAML as one undo step. Charts written as inline `{…}` mappings can't be edited as a form and stay in Code only.
 
 `dct validate` is not part of the plugin; run it from the terminal.
 

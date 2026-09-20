@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- New: **dbt Charts Design tab.** Boards open with the preview on the left and **Code** / **Design** tabs on the right, like the dbt Charts platform. Design is a form for the board or a chart, generated from dct's schema: column dropdowns for `x`/`y`/`color`/…, compact rows, values inherited from the theme shown as placeholders, visibility toggles, and a colour picker with the theme's tokens, all palettes, or a custom hex. Every change is written straight into the YAML (one undo step each). A toolbar button hides the preview
+
 ## [0.7.1] - 2026-09-19
 
 - dbt Charts boards: completion for a chart's `type:` offers all chart types again (only `spark_bar` was suggested). Types that don't fit the chart's current fields are greyed out and listed last, with the reason (e.g. "not allowed: color, sort" or "missing: value")
