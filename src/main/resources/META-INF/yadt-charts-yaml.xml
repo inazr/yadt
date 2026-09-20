@@ -16,8 +16,9 @@
         <annotator language="yaml"
                    implementationClass="com.dbthelper.codeintel.DbtAnnotator"/>
         <!-- dbt Charts board editor (preview + Code/Design tabs). Here, not in plugin.xml, because
-             the Design tab uses the YAML PSI. JCEF: without JCEF support the provider rejects boards
-             and they open in the plain editor. -->
+             the Design tab uses the YAML PSI. Deliberately NOT in yadt-jcef.xml either: that
+             sub-descriptor only loads on 262+, while the editor must work from 251. JCEF: without
+             JCEF support the provider rejects boards and they open in the plain editor. -->
         <fileEditorProvider implementation="com.dbthelper.charts.preview.DbtChartsPreviewEditorProvider"/>
         <!-- order="first": it wraps the JSON-schema suggestions via runRemainingContributors. -->
         <completion.contributor language="yaml" order="first"

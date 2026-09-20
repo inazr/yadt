@@ -2,11 +2,13 @@ package com.dbthelper.charts.editor
 
 import com.dbthelper.charts.preview.DbtChartsPreviewEditor
 import com.intellij.icons.AllIcons
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.ToggleAction
+import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
@@ -25,6 +27,7 @@ import java.awt.BorderLayout
 import java.awt.KeyboardFocusManager
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.text.JTextComponent
 import org.jetbrains.yaml.psi.YAMLFile
 
 /**
@@ -39,9 +42,9 @@ class DbtChartsBoardEditor(
     private val preview: DbtChartsPreviewEditor,
 ) : TextEditor by textEditor {
 
+    private val design: DesignPanel
     private val tabs = JBTabbedPane()
-    private val design = DesignPanel(project, file, this) { offset -> showCode(offset) }
-    private val splitter = JBSplitter(false, "yadt.dbtCharts.boardEditor", 0.5f).apply {
+    private val splitter = JBSplitter(false, SPLITTER_KEY, 0.5f).apply {
         firstComponent = preview.component
         secondComponent = tabs
     }
@@ -55,28 +58,56 @@ class DbtChartsBoardEditor(
     }
 
     init {
+        // Built here, not in a property initializer, so `this` is fully initialized when it escapes.
+        design = DesignPanel(project, file, this) { offset -> showCode(offset) }
         Disposer.register(this, textEditor)
         Disposer.register(this, preview)
         tabs.addTab("Code", textEditor.component)
         tabs.addTab("Design", design.component)
         tabs.addChangeListener { if (tabs.selectedIndex == DESIGN) design.showTarget(targetAtCaret()) }
-        // The preview starts hidden (its visibility drives the dct serve pause); show it by default.
-        preview.component.isVisible = true
+        // The preview starts hidden and its visibility drives the dct serve lease, so restoring the
+        // toggle here is what keeps a board the user hid from starting a server on every reopen.
+        preview.component.isVisible = PropertiesComponent.getInstance().getBoolean(PREVIEW_KEY, true)
         textEditor.editor.document.addDocumentListener(object : DocumentListener {
-            override fun documentChanged(event: DocumentEvent) {
-                refreshAlarm.cancelAllRequests()
-                refreshAlarm.addRequest({ refreshDesign() }, REFRESH_DELAY_MS)
-            }
+            override fun documentChanged(event: DocumentEvent) = scheduleDesignRefresh()
         }, this)
     }
 
-    /** Rebuilds the form unless it holds the focus: a rebuild while typing would drop the edit. */
+    private fun scheduleDesignRefresh() {
+        refreshAlarm.cancelAllRequests()
+        refreshAlarm.addRequest({ refreshDesign() }, REFRESH_DELAY_MS)
+    }
+
+    /**
+     * Re-reads the form, unless the user is typing into it — a rebuild would drop the edit. The
+     * retry keeps the pending refresh alive until they leave the field, so the form never stays
+     * stale; everything else (checkboxes, dropdowns, the colour swatch) refreshes right away.
+     */
     private fun refreshDesign() {
         if (tabs.selectedIndex != DESIGN) return
+        if (isTypingInDesign()) {
+            scheduleDesignRefresh()
+            return
+        }
+        WriteIntentReadAction.run(Runnable {
+            PsiDocumentManager.getInstance(project).commitDocument(textEditor.editor.document)
+            design.refresh()
+        })
+    }
+
+    /** True while a text field of the form, or of a popup the form opened, holds the focus. */
+    private fun isTypingInDesign(): Boolean {
         val focus = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
-        if (focus != null && UIUtil.isAncestor(design.component, focus)) return
-        PsiDocumentManager.getInstance(project).commitDocument(textEditor.editor.document)
-        design.refresh()
+        if (focus !is JTextComponent) return false
+        if (UIUtil.isAncestor(design.component, focus)) return true
+        // The colour picker's custom-hex field lives in a popup window owned by the editor's window.
+        val panelWindow = UIUtil.getWindow(design.component) ?: return false
+        var owner = UIUtil.getWindow(focus)?.owner
+        while (owner != null) {
+            if (owner === panelWindow) return true
+            owner = owner.owner
+        }
+        return false
     }
 
     private fun targetAtCaret(): Target? {
@@ -95,6 +126,11 @@ class DbtChartsBoardEditor(
     override fun getComponent(): JComponent = root
     override fun getName(): String = "dbt Charts"
 
+    /** The code editor is not showing while `Design` is selected, so it can't take the focus back. */
+    override fun getPreferredFocusedComponent(): JComponent? =
+        if (tabs.selectedIndex == DESIGN) UIUtil.getPreferredFocusedComponent(design.component) ?: design.component
+        else textEditor.preferredFocusedComponent
+
     override fun navigateTo(navigatable: Navigatable) {
         tabs.selectedIndex = CODE
         textEditor.navigateTo(navigatable)
@@ -107,6 +143,7 @@ class DbtChartsBoardEditor(
 
         override fun setSelected(e: AnActionEvent, state: Boolean) {
             preview.component.isVisible = state
+            PropertiesComponent.getInstance().setValue(PREVIEW_KEY, state, true)
             splitter.revalidate()
         }
 
@@ -115,6 +152,8 @@ class DbtChartsBoardEditor(
 
     private companion object {
         const val TOOLBAR_PLACE = "DbtChartsBoardEditor"
+        const val SPLITTER_KEY = "yadt.dbtCharts.boardEditor"
+        const val PREVIEW_KEY = "$SPLITTER_KEY.preview"
         const val CODE = 0
         const val DESIGN = 1
         const val REFRESH_DELAY_MS = 300
