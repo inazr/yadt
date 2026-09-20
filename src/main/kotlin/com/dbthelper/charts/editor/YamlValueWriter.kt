@@ -16,30 +16,62 @@ object YamlValueWriter {
 
     private const val COMMAND = "dbt Charts design"
 
-    fun set(project: Project, root: YAMLMapping, path: List<String>, value: String) = edit(project, root) { document ->
-        val existing = BoardTargets.keyValue(root, path)
-        val existingValue = existing?.value
-        when {
-            existingValue != null -> document.replaceString(existingValue.textRange.startOffset, existingValue.textRange.endOffset, YamlText.scalar(value))
-            existing != null -> document.insertString(existing.textRange.endOffset, " " + YamlText.scalar(value))
-            else -> insertPath(document, root, path, value)
+    /** Returns false, editing nothing, when [path] runs through a flow mapping (see [flowMappingOnPath]). */
+    fun set(project: Project, root: YAMLMapping, path: List<String>, value: String): Boolean {
+        if (flowMappingOnPath(root, path)) return false
+        edit(project, root) { document ->
+            val existing = BoardTargets.keyValue(root, path)
+            val existingValue = existing?.value
+            when {
+                existingValue != null -> document.replaceString(existingValue.textRange.startOffset, existingValue.textRange.endOffset, YamlText.scalar(value))
+                existing != null -> document.insertString(existing.textRange.endOffset, " " + YamlText.scalar(value))
+                else -> insertPath(document, root, path, value)
+            }
         }
+        return true
     }
 
-    fun remove(project: Project, root: YAMLMapping, path: List<String>) = edit(project, root) { document ->
-        // Nothing to climb from if the target itself doesn't exist: bail out rather than delete
-        // whatever unrelated key happens to sit at a shorter prefix of the path.
-        BoardTargets.keyValue(root, path) ?: return@edit
-        var keys = path
-        // Remove the deepest key; if its mapping ends up empty, remove the parent key instead.
-        while (keys.size > 1) {
-            val parent = BoardTargets.keyValue(root, keys.dropLast(1))?.value as? YAMLMapping ?: break
-            if (parent.keyValues.size > 1) break
-            keys = keys.dropLast(1)
+    /** Returns false, editing nothing, when [path] runs through a flow mapping (see [flowMappingOnPath]). */
+    fun remove(project: Project, root: YAMLMapping, path: List<String>): Boolean {
+        if (flowMappingOnPath(root, path)) return false
+        edit(project, root) { document ->
+            // Nothing to climb from if the target itself doesn't exist: bail out rather than delete
+            // whatever unrelated key happens to sit at a shorter prefix of the path.
+            BoardTargets.keyValue(root, path) ?: return@edit
+            var keys = path
+            // Remove the deepest key; if its mapping ends up empty, remove the parent key instead.
+            while (keys.size > 1) {
+                val parent = BoardTargets.keyValue(root, keys.dropLast(1))?.value as? YAMLMapping ?: break
+                if (parent.keyValues.size > 1) break
+                keys = keys.dropLast(1)
+            }
+            val keyValue = BoardTargets.keyValue(root, keys) ?: return@edit
+            deleteLines(document, keyValue)
         }
-        val keyValue = BoardTargets.keyValue(root, keys) ?: return@edit
-        deleteLines(document, keyValue)
+        return true
     }
+
+    /**
+     * True when [root] itself, or any mapping the writer must descend through to reach [path]'s
+     * parent, is flow-style (`{background: "#fff", padding: 4}`). `YAMLHashImpl` (a flow mapping)
+     * is a [YAMLMapping] like any block mapping, so [BoardTargets.keyValue] happily descends into
+     * one — but every edit here is line/offset-based text surgery that assumes block style: inserting
+     * a new key adds a newline inside the braces (unparseable YAML), and removing a key deletes the
+     * whole enclosing *line*, which for a flow mapping is every sibling on it. Callers must treat
+     * `false` from [set]/[remove] as "not edited" and fall back to Code.
+     */
+    private fun flowMappingOnPath(root: YAMLMapping, path: List<String>): Boolean {
+        if (root.isFlow()) return true
+        var current = root
+        for (key in path.dropLast(1)) {
+            val next = current.getKeyValueByKey(key)?.value as? YAMLMapping ?: return false
+            if (next.isFlow()) return true
+            current = next
+        }
+        return false
+    }
+
+    private fun YAMLMapping.isFlow() = text.trimStart().startsWith("{")
 
     /**
      * `nested`'s own contract (see [YamlText]) makes its `indent` parameter the column of its

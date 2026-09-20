@@ -1,5 +1,11 @@
 package com.dbthelper.charts.editor
 
+/**
+ * The style a field inherits when unset, deep-merged in dct's own precedence order: a theme's
+ * `_base` ancestor first, then the theme itself (via [DctPalettes.themeChain]), then `meta.yml`
+ * cascades from `charts/` down to the board — each later doc winning field-by-field. A field's
+ * value then comes from `charts.<family>` in that merged style, else `charts`, else the style root.
+ */
 class ThemeDefaults(palettes: DctPalettes, boardTheme: String?, metaDocs: List<Map<String, Any?>>) {
 
     val theme: String = boardTheme ?: metaDocs.mapNotNull { it["theme"] as? String }.lastOrNull() ?: DEFAULT_THEME

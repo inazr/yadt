@@ -53,24 +53,35 @@ class DctSchemaResolver(private val project: Project, internal val cs: Coroutine
 
     fun refresh(): Job = cs.launch(Dispatchers.IO) {
         refreshLock.withLock {
-            dctPackageDir = null
-            val source = resolveLocal()
+            val local = resolveLocal()
+            val source = local?.schema
                 ?: if (DbtHelperSettings.getInstance(project).state.downloadChartsSchema) resolveDownloaded() else null
+            // Computed alongside `source` rather than nulled up front and reassigned later: a
+            // DesignData.warm() reading dctPackageDir mid-refresh must see the last-good value, not
+            // a transient null, or it caches empty palettes with nothing left to invalidate them.
+            val packageDir = local?.packageDir
             val resolved = source?.let(::patchedCopy)
-            if (resolved == schemaPath) return@withLock
+            if (resolved == schemaPath) {
+                dctPackageDir = packageDir
+                return@withLock
+            }
             schemaFile = resolved?.let { LocalFileSystem.getInstance().refreshAndFindFileByNioFile(it) }
             chartTypes = resolved?.let { runCatching { DctChartTypes.parse(Files.readString(it)) }.getOrNull() }.orEmpty()
             schemaPath = resolved
+            dctPackageDir = packageDir
             logger.info("dbt Charts board schema: ${resolved ?: "none"}")
             project.messageBus.syncPublisher(DctSchemaListener.TOPIC).onSchemaChanged(resolved)
         }
     }
 
-    private fun resolveLocal(): Path? {
+    private class LocalSchema(val schema: Path, val packageDir: Path?)
+
+    private fun resolveLocal(): LocalSchema? {
         val dct = DctExecutable.find(project) ?: return null
         val candidates = DctVenvLocator.venvCandidates(dct, uvToolDir(), Path.of(System.getProperty("user.home")))
         val dir = DctVenvLocator.findSchemaDir(candidates) ?: return null
-        return newestVerified(dir)?.also { dctPackageDir = dir.parent?.parent?.parent }
+        val schema = newestVerified(dir) ?: return null
+        return LocalSchema(schema, dir.parent?.parent?.parent)
     }
 
     /**

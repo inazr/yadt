@@ -22,9 +22,23 @@ import java.awt.BorderLayout
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import javax.swing.JComponent
+import javax.swing.JList
 import javax.swing.JPanel
 import org.jetbrains.yaml.psi.YAMLMapping
 import org.jetbrains.yaml.psi.YAMLFile
+
+/**
+ * Renders [text] of the selected value into a combo box cell. Both [SimpleListCellRenderer.create]
+ * overloads are `@Deprecated(forRemoval = true)` from the 2026.2 platform on, so this subclasses
+ * [SimpleListCellRenderer] directly instead — the class and its abstract `customize` are not
+ * deprecated, and always calling [text] with a possibly-null value keeps the same "no selection"
+ * behavior the removed `create(nullValue, Function)` overload gave for free.
+ */
+private fun <T> textRenderer(text: (T?) -> String): SimpleListCellRenderer<T> = object : SimpleListCellRenderer<T>() {
+    override fun customize(list: JList<out T>, value: T, index: Int, selected: Boolean, hasFocus: Boolean) {
+        setText(text(value))
+    }
+}
 
 /**
  * The Design tab: a form for the board or one chart, generated from dct's schema. Every edit goes
@@ -69,7 +83,13 @@ class DesignPanel(
     private var requested: Id? = null
     private var built: Built? = null
     private val selector = ComboBox<Target>().apply {
-        renderer = SimpleListCellRenderer.create("") { t -> if (t is Target.Chart) t.id else "Board" }
+        renderer = textRenderer<Target> { t ->
+            when (t) {
+                null -> ""
+                is Target.Chart -> t.id
+                else -> "Board"
+            }
+        }
         addActionListener {
             if (!updating) (selectedItem as? Target)?.let { requested = it.identity(); update() }
         }
@@ -284,7 +304,7 @@ class DesignPanel(
         ComboBox((listOf("") + values + listOfNotNull(value)).distinct().toTypedArray()).apply {
             isEditable = editable
             selectedItem = value.orEmpty()
-            renderer = SimpleListCellRenderer.create("") { v -> v.ifEmpty { placeholder } }
+            renderer = textRenderer<String> { v -> v?.ifEmpty { placeholder } ?: "" }
             toolTipText = f.help.ifBlank { null }
             var committed = value.orEmpty()
             ctx.updaters += {
@@ -321,14 +341,14 @@ class DesignPanel(
     /**
      * Writes to the live mapping of the form's target: an earlier edit may have reparsed the file
      * while the form (and its captured PSI) stayed on screen because a field kept the focus.
-     * Returns false when the target is gone, so the field keeps the value as uncommitted.
+     * Returns false when the target is gone, or [YamlValueWriter] refused the edit (a flow mapping
+     * on the path), so the field keeps the value as uncommitted.
      */
     private fun write(ctx: Context, path: List<String>, value: String): Boolean {
         val mapping = ctx.mapping.takeIf { it.isValid }
             ?: yamlFile()?.let(BoardTargets::targets)?.firstOrNull { it.identity() == ctx.id }?.mapping?.also { ctx.mapping = it }
             ?: return false
-        if (value.isEmpty()) YamlValueWriter.remove(project, mapping, path)
+        return if (value.isEmpty()) YamlValueWriter.remove(project, mapping, path)
         else YamlValueWriter.set(project, mapping, path, value)
-        return true
     }
 }

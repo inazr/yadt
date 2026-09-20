@@ -87,4 +87,20 @@ class SchemaFormTest {
     fun `an unknown chart type gets the fields all types share`() {
         assertEquals(listOf("title"), SchemaForm.forChart(schema, null).general.map { it.name })
     }
+
+    @Test
+    fun `a link field is not mistaken for a colour field`() {
+        val linkSchema = jsonMapper.readTree(
+            """{"properties": {"link": {"type": "string", "description": "Where the chart links to."}}}""",
+        )
+        assertEquals(FieldKind.Text, SchemaForm.forBoard(linkSchema).field("link").kind)
+    }
+
+    @Test
+    fun `anyOf of integer and number becomes a Number field`() {
+        val widthSchema = jsonMapper.readTree(
+            """{"properties": {"width": {"anyOf": [{"type": "integer"}, {"type": "number"}, {"type": "null"}]}}}""",
+        )
+        assertEquals(FieldKind.Number, SchemaForm.forBoard(widthSchema).field("width").kind)
+    }
 }

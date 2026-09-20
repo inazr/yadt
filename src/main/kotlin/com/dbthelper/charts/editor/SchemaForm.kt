@@ -25,7 +25,9 @@ data class Form(val title: String, val family: String?, val encoding: List<FormF
 object SchemaForm {
 
     private val SCALARS = setOf(FieldKind.Text, FieldKind.Number, FieldKind.Bool, FieldKind.Color, FieldKind.Column)
-    private val COLOR_NAME = Regex("color|colour|background|fill|ink|stroke")
+    // Anchored to a name segment (start or after `_`) so "link"/"header_link" don't match on "ink".
+    private val COLOR_NAME = Regex("(^|_)(color|colour|background|fill|ink|stroke)")
+    private val NUMERIC_TYPES = setOf("integer", "number")
 
     fun forBoard(schema: JsonNode): Form = group("Board", null, fields(schema, schema, emptyList(), emptySet()))
 
@@ -73,6 +75,9 @@ object SchemaForm {
             n = when {
                 alternatives.size == 1 -> alternatives.single()
                 alternatives.any { it.path("type").asText() == "string" } -> alternatives.first { it.path("type").asText() == "string" }
+                // `anyOf: [integer, number, null]` (dct's width/height fields): either numeric shape
+                // renders the same Number field, so take the first rather than falling to Unsupported.
+                alternatives.isNotEmpty() && alternatives.all { it.path("type").asText() in NUMERIC_TYPES } -> alternatives.first()
                 else -> return FieldKind.Unsupported("several shapes")
             }
         }

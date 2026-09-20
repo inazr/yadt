@@ -1,5 +1,6 @@
 package com.dbthelper.charts.editor
 
+/** Column names of a query's outermost `SELECT` only (subqueries/CTEs are masked out); none for `SELECT *`. */
 object SqlSelectColumns {
 
     fun of(sql: String): List<String> {
@@ -41,8 +42,7 @@ object SqlSelectColumns {
 
     private fun topLevelKeyword(masked: String, keyword: String, after: Int = -1): Int? {
         val regex = Regex("""\b$keyword\b""", RegexOption.IGNORE_CASE)
-        val hits = regex.findAll(masked).map { it.range.first }.filter { it > after }.toList()
-        return if (keyword == "select") hits.firstOrNull() else hits.firstOrNull()
+        return regex.findAll(masked).map { it.range.first }.firstOrNull { it > after }
     }
 
     private fun splitAt(masked: String, separator: Char): List<Pair<Int, Int>> {

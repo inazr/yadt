@@ -7,6 +7,7 @@ import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
 import kotlin.io.path.name
 
+/** dct's own palettes/themes, loaded from its package data directory (`core/defaults/{palettes,themes}`). */
 class DctPalettes(val palettes: Map<String, Palette>, val themes: Map<String, Map<String, Any?>>) {
 
     data class Palette(val name: String, val family: String, val colors: List<String>, val aliases: Map<String, String>)
