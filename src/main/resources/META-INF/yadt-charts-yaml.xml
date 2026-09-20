@@ -1,6 +1,7 @@
 <!--
-  Optional sub-descriptor for the YAML plugin (org.jetbrains.plugins.yaml): ref()/source() code
-  intelligence inside dbt Charts board queries. The "yaml" language only exists with that plugin.
+  Optional sub-descriptor for the YAML plugin (org.jetbrains.plugins.yaml): the board editor and
+  ref()/source() code intelligence inside dbt Charts board queries. The "yaml" language and the YAML
+  PSI the board editor's Design tab reads only exist with that plugin.
   completion.contributor (language="any"), the v2 documentation target providers and
   gotoDeclarationHandler are language-agnostic and registered in plugin.xml; the isDbtCodeIntelFile
   gate restricts all of them to board files. TerminalColumnAnnotator is deliberately NOT registered:
@@ -14,6 +15,10 @@
                                     implementationClass="com.dbthelper.codeintel.DbtDocumentationProvider"/>
         <annotator language="yaml"
                    implementationClass="com.dbthelper.codeintel.DbtAnnotator"/>
+        <!-- dbt Charts board editor (preview + Code/Design tabs). Here, not in plugin.xml, because
+             the Design tab uses the YAML PSI. JCEF: without JCEF support the provider rejects boards
+             and they open in the plain editor. -->
+        <fileEditorProvider implementation="com.dbthelper.charts.preview.DbtChartsPreviewEditorProvider"/>
         <!-- order="first": it wraps the JSON-schema suggestions via runRemainingContributors. -->
         <completion.contributor language="yaml" order="first"
                                 implementationClass="com.dbthelper.charts.DbtChartsTypeCompletionContributor"/>

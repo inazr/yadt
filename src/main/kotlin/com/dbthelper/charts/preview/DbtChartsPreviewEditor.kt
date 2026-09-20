@@ -39,11 +39,10 @@ import org.cef.handler.CefLoadHandlerAdapter
  * whenever the file on disk changes, so this editor only saves the document after a typing pause
  * and loads the board URL; startup/failure messages replace the browser with a status panel.
  *
- * Works only while the preview is visible: in the "Editor only" layout it releases its server lease,
- * blanks the page (dropping livereload) and stops saving, so hidden boards never re-run warehouse
- * queries. Visibility is the signal because TextEditorWithPreview applies every layout — toolbar,
- * restored state or the remembered default — through the preview component's `isVisible`, while
- * `onLayoutChange` only fires for the toolbar.
+ * Works only while the preview is visible: once hidden it releases its server lease, blanks the page
+ * (dropping livereload) and stops saving, so hidden boards never re-run warehouse queries. Visibility
+ * is the signal, not an explicit call, because the host (DbtChartsBoardEditor's "Show Preview" toggle)
+ * shows and hides this component; it therefore starts hidden and resumes on the first componentShown.
  */
 class DbtChartsPreviewEditor(
     private val project: Project,

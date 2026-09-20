@@ -10,11 +10,20 @@ class PreviewProviderDeclarationTest {
     private val provider = "com.dbthelper.charts.preview.DbtChartsPreviewEditorProvider"
 
     @Test
-    fun `board preview provider is registered in the main descriptor`() {
-        val pluginXml = File("src/main/resources/META-INF/plugin.xml").readText()
+    fun `board editor provider is registered in the YAML sub-descriptor`() {
+        val yamlXml = File("src/main/resources/META-INF/yadt-charts-yaml.xml").readText()
         assertTrue(
-            Regex("""<fileEditorProvider[^>]*implementation="${Regex.escape(provider)}"""").containsMatchIn(pluginXml),
-            "plugin.xml must register $provider as a fileEditorProvider",
+            Regex("""<fileEditorProvider[^>]*implementation="${Regex.escape(provider)}"""").containsMatchIn(yamlXml),
+            "yadt-charts-yaml.xml must register $provider as a fileEditorProvider",
+        )
+    }
+
+    @Test
+    fun `board editor provider is not registered in the main descriptor`() {
+        val pluginXml = File("src/main/resources/META-INF/plugin.xml").readText()
+        assertFalse(
+            pluginXml.contains(provider),
+            "the Design tab needs the YAML PSI, so $provider belongs in yadt-charts-yaml.xml only",
         )
     }
 
