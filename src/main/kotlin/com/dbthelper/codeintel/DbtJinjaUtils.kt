@@ -63,12 +63,23 @@ object DbtJinjaUtils {
         data class SourceName(val prefix: String) : CompletionContext()
         data class SourceTable(val sourceName: String, val prefix: String) : CompletionContext()
         data class Macro(val prefix: String) : CompletionContext()
+
+        /** `fct_orders.cli` — [qualifier] is a table name or alias, [prefix] what's typed after the dot. */
+        data class Column(val qualifier: String, val prefix: String) : CompletionContext()
     }
 
     private val CTX_REF = Regex("""ref\s*\(\s*['"]([^'"]*)$""")
     private val CTX_SOURCE_SECOND = Regex("""source\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]*)$""")
     private val CTX_SOURCE_FIRST = Regex("""source\s*\(\s*['"]([^'"]*)$""")
     private val CTX_MACRO = Regex("""\{\{[-\s]*(\w*)$""")
+    private val CTX_COLUMN = Regex("""(?<![\w.$])([A-Za-z_]\w*)\.(\w*)$""")
+
+    private fun insideJinja(textBeforeCursor: String): Boolean {
+        val open = maxOf(textBeforeCursor.lastIndexOf("{{"), textBeforeCursor.lastIndexOf("{%"))
+        if (open < 0) return false
+        val close = maxOf(textBeforeCursor.lastIndexOf("}}"), textBeforeCursor.lastIndexOf("%}"))
+        return close < open
+    }
 
     fun detectCompletionContext(textBeforeCursor: String, allowMacros: Boolean = true): CompletionContext? {
         CTX_REF.find(textBeforeCursor)?.let {
@@ -83,6 +94,12 @@ object DbtJinjaUtils {
         if (allowMacros) {
             CTX_MACRO.find(textBeforeCursor)?.let {
                 return CompletionContext.Macro(it.groupValues[1])
+            }
+        }
+        // Only outside Jinja: inside `{{ … }}` a dot is an attribute, not a SQL column qualifier.
+        if (!insideJinja(textBeforeCursor)) {
+            CTX_COLUMN.find(textBeforeCursor)?.let {
+                return CompletionContext.Column(it.groupValues[1], it.groupValues[2])
             }
         }
         return null

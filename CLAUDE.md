@@ -51,6 +51,8 @@ This is the wiring file — every Kotlin class is registered here as a service, 
 ### `codeintel/` — language integration
 `DbtJinjaUtils.kt` is the regex-based shared parser (`ref()`, `source()`, `macro()` calls + completion context detection). Every code-intel class delegates token recognition here rather than parsing PSI — this is what lets the same code run unchanged across `TEXT`/`Jinja2`/`SQL` languages, and inside YAML block scalars (dbt Charts board queries).
 
+`SqlRefScope` (pure, tested) maps a qualifier — a relation name or an alias from `FROM {{ ref('x') }} AS o` — to the model or source it stands for; `CompletionContext.Column` uses it to offer that table's columns (from `ManifestIndex`, i.e. manifest + catalog) and stays silent when the qualifier isn't in the SQL's own refs.
+
 Every entry point gates on **`isDbtCodeIntelFile(vFile)`** (= `.sql`/`.jinja`/`.jinja2` **or** a dbt Charts board), not on `isDbtTemplateFile` directly. Boards pass `allowMacros = false` to `detectCompletionContext`: `dct` resolves board Jinja (`{{ filter(...) }}` etc.), not dbt, so dbt macros are never offered there.
 
 ### `charts/` — dbt Charts board editing
