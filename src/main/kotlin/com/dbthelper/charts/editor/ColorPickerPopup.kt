@@ -87,15 +87,22 @@ object ColorPickerPopup {
             }
         }
 
-    /** A square button painted in [hex] (grey if it isn't a `#rrggbb` colour); click picks [token]. */
-    fun swatch(token: String, hex: String, pick: (String) -> Unit): JButton = JButton().apply {
+    /** A square button painted in [hex] (grey if it isn't a `#rrggbb` colour), without a listener. */
+    fun swatch(token: String, hex: String): JButton = JButton().apply {
         preferredSize = Dimension(JBUI.scale(18), JBUI.scale(18))
         isContentAreaFilled = false
         isOpaque = true
-        background = parse(hex)
-        toolTipText = "$token  $hex".trim()
-        addActionListener { pick(token) }
+        paint(this, token, hex)
     }
+
+    /** Repaints a [swatch] for a new value, so a form can reuse the button it already built. */
+    fun paint(swatch: JButton, token: String, hex: String) {
+        swatch.background = parse(hex)
+        swatch.toolTipText = "$token  $hex".trim().ifEmpty { null }
+    }
+
+    private fun swatch(token: String, hex: String, pick: (String) -> Unit): JButton =
+        swatch(token, hex).apply { addActionListener { pick(token) } }
 
     private fun parse(hex: String): Color =
         hex.trim().take(7).takeIf { it.matches(HEX) }?.let { runCatching { Color.decode(it) }.getOrNull() } ?: JBColor.GRAY
