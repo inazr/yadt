@@ -126,6 +126,12 @@ class DbtChartsBoardEditor(
     override fun getComponent(): JComponent = root
     override fun getName(): String = "dbt Charts"
 
+    /**
+     * Kotlin's interface delegation does not cover `FileEditor.getFile`'s Java default body, so
+     * without this the platform hits the deprecated default and logs a PluginException.
+     */
+    override fun getFile(): VirtualFile = file
+
     /** The code editor is not showing while `Design` is selected, so it can't take the focus back. */
     override fun getPreferredFocusedComponent(): JComponent? =
         if (tabs.selectedIndex == DESIGN) UIUtil.getPreferredFocusedComponent(design.component) ?: design.component
