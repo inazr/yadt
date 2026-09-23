@@ -33,4 +33,12 @@ class ChartsDependencyDeclarationTest {
     fun `yaml dependency is optional with an existing config file`() {
         assertOptionalDependency("org.jetbrains.plugins.yaml")
     }
+
+    @Test
+    fun `board query gutter icon is registered with the yaml plugin only`() {
+        val provider = "com.dbthelper.charts.query.BoardQueryLineMarkerProvider"
+        val yamlXml = File("src/main/resources/META-INF/yadt-charts-yaml.xml").readText()
+        assertTrue(yamlXml.contains(provider), "the gutter icon reads YAML PSI: register it in yadt-charts-yaml.xml")
+        assertTrue(!pluginXml.contains(provider), "the gutter icon must not be registered in plugin.xml")
+    }
 }

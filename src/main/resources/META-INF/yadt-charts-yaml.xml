@@ -23,5 +23,8 @@
         <!-- order="first": it wraps the JSON-schema suggestions via runRemainingContributors. -->
         <completion.contributor language="yaml" order="first"
                                 implementationClass="com.dbthelper.charts.DbtChartsTypeCompletionContributor"/>
+        <!-- Run icon on each board query: opens its rows in the YADT Query tab. -->
+        <codeInsight.lineMarkerProvider language="yaml"
+                                        implementationClass="com.dbthelper.charts.query.BoardQueryLineMarkerProvider"/>
     </extensions>
 </idea-plugin>
