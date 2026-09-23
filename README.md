@@ -94,6 +94,8 @@ If neither source yields a schema, board files stay plain YAML and a project con
 
 **Design tab:** a form for the board or the selected chart, generated straight from dct's schema — no hand-written form per chart type. Fields for columns (`x`, `y`, `color`, …) are dropdowns populated from the query's `SELECT` list; values the chart would otherwise inherit from the theme are shown as placeholders rather than duplicated into the YAML; sections such as legends or axes have a visibility toggle; and colour fields open a picker with the active theme's tokens, all of dct's bundled palettes, or a custom hex. Every edit is written straight into the YAML as one undo step. Charts written as inline `{…}` mappings can't be edited as a form and stay in Code only.
 
+**Query preview:** a run icon next to each entry under `queries:` shows that query's rows in the **Query** tab of the YADT tool window, without rendering the board. YADT runs `dct query`, so sources, Jinja and variables resolve exactly as on the board. Each board variable gets an input field, prefilled with its `default:`; the row limit is 20 by default and at most 1000. dct's errors are shown as dct reports them.
+
 `dct validate` is not part of the plugin; run it from the terminal.
 
 ---

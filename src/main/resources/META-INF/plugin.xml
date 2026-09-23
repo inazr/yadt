@@ -40,6 +40,7 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
   <li><code>ref()</code> / <code>source()</code> completion, go to definition, hover docs and unresolved-reference warnings inside board queries</li>
   <li><b>Live preview</b> — preview next to Code/Design tabs, rendered by your own <code>dct serve</code> and refreshed as you type</li>
   <li><b>Design tab</b> — a form for the board or a chart, generated from dct's schema, with column dropdowns, inherited theme values and a token colour picker; changes are written into the YAML</li>
+  <li><b>Query preview</b> — a run icon on each board query shows its rows in the Query tab, via <code>dct query</code>, with fields for the board's variables</li>
   <li><b>Chart type hints</b> — chart types that don't fit a chart's fields are greyed out in completion, with the reason</li>
 </ul>
 
