@@ -5,6 +5,7 @@ import com.dbthelper.actions.CompiledSql
 import com.dbthelper.actions.DbtCommandRunner
 import com.dbthelper.actions.DbtCommandSpec
 import com.dbthelper.actions.DbtVerb
+import com.dbthelper.charts.query.DbtQueryPreviewGateway
 import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.DbtRunState
 import com.dbthelper.core.DbtRunnerGateway
@@ -30,7 +31,7 @@ import java.io.File
 import javax.swing.JPanel
 
 /**
- * Hosts the shared action bar above the Lineage + Runner tabs and coordinates
+ * Hosts the shared action bar above the Lineage, Runner and Query tabs and coordinates
  * between them: runs commands, owns run-state, auto-fills the selector from the
  * editor, and drives the lineage graph from the selector (honoring graph operators).
  */
@@ -43,6 +44,7 @@ class DbtMainPanel(
     private val tabs = JBTabbedPane()
     private val lineageTab = LineageTab(project, this, actionBar)
     private val runnerTab = DbtRunnerTab(project, this)
+    private val queryTab = DbtQueryTab(project, this)
     private val selectionResolver = com.dbthelper.core.DbtSelectionResolver(project)
     @Volatile private var lineageGeneration = 0
 
@@ -59,6 +61,7 @@ class DbtMainPanel(
 
         tabs.addTab("Lineage", lineageTab)
         tabs.addTab("Runner", runnerTab)
+        tabs.addTab("Query", queryTab)
         add(actionBar, BorderLayout.NORTH)
         add(tabs, BorderLayout.CENTER)
 
@@ -71,6 +74,10 @@ class DbtMainPanel(
             run = { actionBar.clickGo() },
             clear = { actionBar.clickClear() },
         )
+        DbtQueryPreviewGateway.getInstance(project).register { board, name ->
+            tabs.selectedComponent = queryTab
+            queryTab.show(board, name)
+        }
         actionBar.onSelectorChanged = { sel -> driveLineage(sel) }
         actionBar.onSelectorEnter = { sel -> resolveViaCliAndFocus(sel) }
 
