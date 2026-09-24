@@ -3,6 +3,7 @@ package com.dbthelper.charts.editor
 import com.fasterxml.jackson.databind.JsonNode
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.vfs.VirtualFile
@@ -120,7 +121,10 @@ class DesignPanel(
 
     private fun yamlFile(): YAMLFile? = if (file.isValid) PsiManager.getInstance(project).findFile(file) as? YAMLFile else null
 
-    private fun update() {
+    /** Swing callbacks hold no lock in 2026.2+, so every PSI entry point of the form takes one. */
+    private fun update() = WriteIntentReadAction.run(Runnable { rebuild() })
+
+    private fun rebuild() {
         val yaml = yamlFile()
         val targets = yaml?.let(BoardTargets::targets).orEmpty()
         if (requested == null) requested = targets.firstOrNull()?.identity()
@@ -258,7 +262,9 @@ class DesignPanel(
             FieldKind.Number -> cell(textInput(f, ctx, value, placeholder, numeric = true))
             FieldKind.Text -> cell(textInput(f, ctx, value, placeholder, numeric = false))
             is FieldKind.Unsupported -> link("edit in Code") {
-                onEditInCode(BoardTargets.keyOffset(ctx.mapping, f.path) ?: ctx.mapping.textRange.startOffset)
+                WriteIntentReadAction.run(Runnable {
+                    onEditInCode(BoardTargets.keyOffset(ctx.mapping, f.path) ?: ctx.mapping.textRange.startOffset)
+                })
             }
             is FieldKind.Compact, is FieldKind.Section -> Unit
         }
@@ -344,7 +350,10 @@ class DesignPanel(
      * Returns false when the target is gone, or [YamlValueWriter] refused the edit (a flow mapping
      * on the path), so the field keeps the value as uncommitted.
      */
-    private fun write(ctx: Context, path: List<String>, value: String): Boolean {
+    private fun write(ctx: Context, path: List<String>, value: String): Boolean =
+        WriteIntentReadAction.compute<Boolean, RuntimeException> { writeLocked(ctx, path, value) }
+
+    private fun writeLocked(ctx: Context, path: List<String>, value: String): Boolean {
         val mapping = ctx.mapping.takeIf { it.isValid }
             ?: yamlFile()?.let(BoardTargets::targets)?.firstOrNull { it.identity() == ctx.id }?.mapping?.also { ctx.mapping = it }
             ?: return false

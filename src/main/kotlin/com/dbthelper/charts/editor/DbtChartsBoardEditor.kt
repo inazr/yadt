@@ -64,7 +64,10 @@ class DbtChartsBoardEditor(
         Disposer.register(this, preview)
         tabs.addTab("Code", textEditor.component)
         tabs.addTab("Design", design.component)
-        tabs.addChangeListener { if (tabs.selectedIndex == DESIGN) design.showTarget(targetAtCaret()) }
+        tabs.addChangeListener {
+            // Swing listeners hold no write-intent lock, and targetAtCaret commits the document.
+            if (tabs.selectedIndex == DESIGN) WriteIntentReadAction.run(Runnable { design.showTarget(targetAtCaret()) })
+        }
         // The preview starts hidden and its visibility drives the dct serve lease, so restoring the
         // toggle here is what keeps a board the user hid from starting a server on every reopen.
         preview.component.isVisible = PropertiesComponent.getInstance().getBoolean(PREVIEW_KEY, true)
@@ -132,10 +135,13 @@ class DbtChartsBoardEditor(
      */
     override fun getFile(): VirtualFile = file
 
-    /** The code editor is not showing while `Design` is selected, so it can't take the focus back. */
+    /**
+     * The code editor is not showing while `Design` is selected, so it can't take the focus back.
+     * Never ask a focus traversal policy here (`UIUtil.getPreferredFocusedComponent`): the editor
+     * composite's policy calls this method again, which overflowed the stack and blanked the tab.
+     */
     override fun getPreferredFocusedComponent(): JComponent? =
-        if (tabs.selectedIndex == DESIGN) UIUtil.getPreferredFocusedComponent(design.component) ?: design.component
-        else textEditor.preferredFocusedComponent
+        if (tabs.selectedIndex == DESIGN) tabs else textEditor.preferredFocusedComponent
 
     override fun navigateTo(navigatable: Navigatable) {
         tabs.selectedIndex = CODE
