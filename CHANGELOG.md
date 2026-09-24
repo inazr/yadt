@@ -2,10 +2,10 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-24
+
 - New: **dbt Charts query preview.** A run icon next to each entry under a board's `queries:` opens the new **Query** tab in the YADT tool window and shows the rows the query returns, without rendering the board. It runs `dct query`, with one input field per board variable (prefilled with its `default:`) and a row limit (20 by default, up to 1000). dct's errors, such as an undefined variable, are shown as dct reports them
-
 - New: **column completion in SQL.** After a table name or alias (`fct_orders.`, `o.`), YADT offers that table's columns with their data type and description, in `.sql` models and in dbt Charts board queries. The qualifier is resolved from the `ref()` / `source()` calls of the same SQL, so only columns that are really available are suggested; columns come from `manifest.json` plus `catalog.json`
-
 - New: **dbt Charts Design tab.** Boards open with the preview on the left and **Code** / **Design** tabs on the right, like the dbt Charts platform. Design is a form for the board or a chart, generated from dct's schema: column dropdowns for `x`/`y`/`color`/…, compact rows, values inherited from the theme shown as placeholders, visibility toggles, and a colour picker with the theme's tokens, all palettes, or a custom hex. Every change is written straight into the YAML (one undo step each). A toolbar button hides the preview
 
 ## [0.7.1] - 2026-09-19
@@ -123,7 +123,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/inazr/yadt/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/inazr/yadt/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/inazr/yadt/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/inazr/yadt/compare/v0.6.0...v0.6.1
