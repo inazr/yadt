@@ -6,9 +6,10 @@ import com.dbthelper.charts.query.DctQueryCommand
 import com.dbthelper.charts.query.DctQueryResult
 import com.dbthelper.charts.query.DctQueryRunner
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Computable
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
@@ -156,7 +157,7 @@ class DbtQueryTab(
 
     /** The editor's text if the board is open, so unsaved variable edits count. `getDocument` needs a read lock. */
     private fun boardText(board: VirtualFile): String =
-        ReadAction.compute<String?, RuntimeException> { FileDocumentManager.getInstance().getDocument(board)?.text }
+        ApplicationManager.getApplication().runReadAction(Computable { FileDocumentManager.getInstance().getDocument(board)?.text })
             ?: runCatching { String(board.contentsToByteArray(), board.charset) }.getOrDefault("")
 
     override fun dispose() = runner.stop()

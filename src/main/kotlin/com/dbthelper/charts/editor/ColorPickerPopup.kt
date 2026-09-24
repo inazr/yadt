@@ -4,12 +4,15 @@ import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.ColorPicker
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
 import java.awt.Color
+import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
+import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -19,6 +22,7 @@ import javax.swing.JPanel
 object ColorPickerPopup {
 
     private val HEX = Regex("#[0-9a-fA-F]{6}")
+    private const val PALETTES_HEIGHT = 360
 
     fun show(owner: JComponent, palettes: DctPalettes, theme: String, onPick: (String) -> Unit) {
         lateinit var close: () -> Unit
@@ -49,12 +53,19 @@ object ColorPickerPopup {
         return column(rows.map { (title, tokens) -> title to tokens.mapNotNull { t -> palettes.resolve(t, theme)?.let { t to it } } }, pick)
     }
 
-    private fun palettesTab(palettes: DctPalettes, pick: (String) -> Unit): JComponent =
-        column(
+    /** Scrolls: there are dozens of palettes, and the tallest tab sets the popup's height. */
+    private fun palettesTab(palettes: DctPalettes, pick: (String) -> Unit): JComponent {
+        val list = column(
             palettes.palettes.values.sortedWith(compareBy({ it.family }, { it.name })).filter { it.colors.isNotEmpty() }
                 .map { p -> "${p.family} · ${p.name}" to p.colors.mapIndexed { i, hex -> "${p.name}.${i + 1}" to hex } },
             pick,
         )
+        return JBScrollPane(list).apply {
+            border = JBUI.Borders.empty()
+            val width = list.preferredSize.width + verticalScrollBar.preferredSize.width
+            preferredSize = Dimension(width, minOf(list.preferredSize.height, JBUI.scale(PALETTES_HEIGHT)))
+        }
+    }
 
     private fun customTab(owner: JComponent, pick: (String) -> Unit): JComponent {
         val hex = JBTextField(8)
@@ -81,10 +92,20 @@ object ColorPickerPopup {
         JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = JBUI.Borders.empty(8)
+            // BoxLayout hands spare height to rows that may grow and centres mismatched alignments:
+            // pin each row to its own height and everything to the left edge.
             rows.filter { it.second.isNotEmpty() }.forEach { (title, swatches) ->
-                add(JBLabel(title).apply { foreground = JBUI.CurrentTheme.ContextHelp.FOREGROUND })
-                add(JPanel(FlowLayout(FlowLayout.LEFT, 2, 2)).apply { swatches.forEach { (token, hex) -> add(swatch(token, hex, pick)) } })
+                add(JBLabel(title).apply {
+                    foreground = JBUI.CurrentTheme.ContextHelp.FOREGROUND
+                    alignmentX = Component.LEFT_ALIGNMENT
+                })
+                add(JPanel(FlowLayout(FlowLayout.LEFT, 2, 2)).apply {
+                    alignmentX = Component.LEFT_ALIGNMENT
+                    swatches.forEach { (token, hex) -> add(swatch(token, hex, pick)) }
+                    maximumSize = Dimension(Int.MAX_VALUE, preferredSize.height)
+                })
             }
+            add(Box.createVerticalGlue())
         }
 
     /** A square button painted in [hex] (grey if it isn't a `#rrggbb` colour), without a listener. */

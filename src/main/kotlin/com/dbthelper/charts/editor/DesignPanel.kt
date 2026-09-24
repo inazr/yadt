@@ -350,8 +350,12 @@ class DesignPanel(
      * Returns false when the target is gone, or [YamlValueWriter] refused the edit (a flow mapping
      * on the path), so the field keeps the value as uncommitted.
      */
-    private fun write(ctx: Context, path: List<String>, value: String): Boolean =
-        WriteIntentReadAction.compute<Boolean, RuntimeException> { writeLocked(ctx, path, value) }
+    /** `run`, not `compute`: `compute`'s signature changed after 251, a NoSuchMethodError on 262. */
+    private fun write(ctx: Context, path: List<String>, value: String): Boolean {
+        var written = false
+        WriteIntentReadAction.run(Runnable { written = writeLocked(ctx, path, value) })
+        return written
+    }
 
     private fun writeLocked(ctx: Context, path: List<String>, value: String): Boolean {
         val mapping = ctx.mapping.takeIf { it.isValid }
