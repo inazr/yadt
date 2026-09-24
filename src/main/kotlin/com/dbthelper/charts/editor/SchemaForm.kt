@@ -16,7 +16,10 @@ sealed interface FieldKind {
 
 data class FormField(val name: String, val path: List<String>, val label: String, val help: String, val kind: FieldKind)
 
-data class Form(val title: String, val family: String?, val encoding: List<FormField>, val general: List<FormField>, val sections: List<FormField>)
+/** A titled block of the form; [expanded] is how it starts. */
+data class FieldGroup(val title: String, val expanded: Boolean, val fields: List<FormField>)
+
+data class Form(val title: String, val family: String?, val groups: List<FieldGroup>)
 
 /**
  * Builds the Design form from dct's board schema, the way the dbt Charts platform generates its
@@ -29,44 +32,78 @@ object SchemaForm {
     private val COLOR_NAME = Regex("(^|_)(color|colour|background|fill|ink|stroke)")
     private val NUMERIC_TYPES = setOf("integer", "number")
 
-    fun forBoard(schema: JsonNode): Form = group("Board", null, fields(schema, schema, emptyList(), emptySet()))
+    /**
+     * The groups a form's top-level fields fall into, after dct's own grouping of board fields
+     * (identity → data → layout → presentation). A field no group names lands in Advanced, so a
+     * field a newer dct adds still shows up.
+     */
+    private class GroupSpec(val title: String, val expanded: Boolean, val names: Set<String>, val columns: Boolean = false)
 
-    fun forChart(schema: JsonNode, type: String?): Form {
+    private val BOARD_GROUPS = listOf(
+        GroupSpec("Content", true, setOf("title", "text", "notes", "tags")),
+        GroupSpec("Data", true, setOf("source", "variables", "queries", "cache", "incremental")),
+        GroupSpec("Layout", false, setOf("rows", "cols", "grid", "tabs", "charts", "card_gap", "chart_focus", "details")),
+        GroupSpec("Appearance", false, setOf("theme", "style", "width", "height")),
+    )
+    private val CHART_GROUPS = listOf(
+        GroupSpec("Content", true, setOf("title", "subtitle", "label", "message")),
+        GroupSpec("Data", true, setOf("query")),
+        GroupSpec("Encoding", true, setOf("x_label", "y_label", "sort", "multiples"), columns = true),
+        GroupSpec("Size", false, setOf("height", "width")),
+        GroupSpec(STYLE, false, setOf("style")),
+    )
+    private const val STYLE = "Style"
+    private const val ADVANCED = "Advanced"
+
+    fun forBoard(schema: JsonNode, order: DctFieldOrder = DctFieldOrder.EMPTY): Form =
+        form("Board", null, BOARD_GROUPS, fields(schema, schema, BOARD_DEF, emptyList(), emptySet(), order))
+
+    fun forChart(schema: JsonNode, type: String?, order: DctFieldOrder = DctFieldOrder.EMPTY): Form {
         val defs = schema.path("\$defs")
         val branches = defs.path("AuthoredChart").path("anyOf").mapNotNull { ref(defs, it) }
         val match = branches.firstOrNull { (_, def) -> def.path("properties").path("type").path("enum").any { it.asText() == type } }
         if (match == null) {
             val common = branches.map { (_, def) -> def.path("properties").fieldNames().asSequence().toSet() }
                 .reduceOrNull { a, b -> a intersect b }.orEmpty()
-            val first = branches.firstOrNull()?.second ?: return group("Chart", null, emptyList())
-            return group("Chart", null, fields(schema, first, emptyList(), emptySet()).filter { it.name in common })
+            val (firstName, first) = branches.firstOrNull() ?: return form("Chart", null, CHART_GROUPS, emptyList())
+            return form("Chart", null, CHART_GROUPS, fields(schema, first, firstName, emptyList(), emptySet(), order).filter { it.name in common })
         }
         val (defName, def) = match
-        return group("${label(type!!)} Chart", family(defName), fields(schema, def, emptyList(), setOf(defName)))
+        return form("${label(type!!)} Chart", family(defName), CHART_GROUPS, fields(schema, def, defName, emptyList(), setOf(defName), order))
     }
+
+    /** The root board's heading in dct's reference (the schema itself calls it AuthoredBoard). */
+    private const val BOARD_DEF = "Board"
 
     fun label(key: String): String = key.replace('_', ' ').replaceFirstChar { it.uppercase() }
 
     private fun family(defName: String): String =
         defName.removeSuffix("Chart").replace(Regex("(?<=[a-z])(?=[A-Z])"), "_").lowercase()
 
-    private fun group(title: String, family: String?, all: List<FormField>): Form {
+    private fun form(title: String, family: String?, specs: List<GroupSpec>, all: List<FormField>): Form {
         val visible = all.filter { it.name != "type" }
-        return Form(
-            title = title,
-            family = family,
-            encoding = if (family == null) emptyList() else visible.filter { it.kind == FieldKind.Column },
-            general = visible.filter { it.kind !is FieldKind.Section && (family == null || it.kind != FieldKind.Column) },
-            sections = visible.filter { it.kind is FieldKind.Section },
-        )
+        fun specOf(f: FormField) = specs.firstOrNull { f.name in it.names || (it.columns && f.kind == FieldKind.Column) }
+        val groups = specs.map { spec -> FieldGroup(spec.title, spec.expanded, visible.filter { specOf(it) === spec }) } +
+            FieldGroup(ADVANCED, false, visible.filter { specOf(it) == null })
+        return Form(title, family, groups.map(::flattenStyle).filter { it.fields.isNotEmpty() })
     }
 
-    private fun fields(schema: JsonNode, def: JsonNode, path: List<String>, seen: Set<String>): List<FormField> =
-        def.path("properties").fields().asSequence().map { (name, node) ->
-            FormField(name, path + name, label(name), node.path("description").asText(""), kind(schema, name, node, path + name, seen))
-        }.toList()
+    /** The Style group shows the `style` section's own fields rather than one "Style" section inside it. */
+    private fun flattenStyle(group: FieldGroup): FieldGroup {
+        val section = group.fields.singleOrNull()?.kind as? FieldKind.Section
+        if (group.title != STYLE || section == null) return group
+        return group.copy(fields = listOfNotNull(section.toggle) + section.children)
+    }
 
-    private fun kind(schema: JsonNode, name: String, node: JsonNode, path: List<String>, seen: Set<String>): FieldKind {
+    private fun fields(schema: JsonNode, def: JsonNode, defName: String?, path: List<String>, seen: Set<String>, order: DctFieldOrder): List<FormField> {
+        val properties = def.path("properties")
+        return order.sort(defName, properties.fieldNames().asSequence().toList()).map { name ->
+            val node = properties.path(name)
+            FormField(name, path + name, label(name), node.path("description").asText(""), kind(schema, name, node, path + name, seen, order))
+        }
+    }
+
+    private fun kind(schema: JsonNode, name: String, node: JsonNode, path: List<String>, seen: Set<String>, order: DctFieldOrder): FieldKind {
         val defs = schema.path("\$defs")
         val description = node.path("description").asText("").lowercase()
         var n = node
@@ -82,10 +119,12 @@ object SchemaForm {
             }
         }
         var nextSeen = seen
+        var defName: String? = null
         if (n.has("\$ref")) {
-            val (defName, def) = ref(defs, n) ?: return FieldKind.Unsupported("unknown")
-            if (defName in seen) return FieldKind.Unsupported("recursive")
-            nextSeen = seen + defName
+            val (refName, def) = ref(defs, n) ?: return FieldKind.Unsupported("unknown")
+            if (refName in seen) return FieldKind.Unsupported("recursive")
+            nextSeen = seen + refName
+            defName = refName
             n = def
         }
         val type = n.path("type").asText()
@@ -98,7 +137,7 @@ object SchemaForm {
             type == "string" && (COLOR_NAME.containsMatchIn(name) || "color" in description) -> FieldKind.Color
             type == "string" -> FieldKind.Text
             n.has("properties") -> {
-                val children = fields(schema, n, path, nextSeen)
+                val children = fields(schema, n, defName, path, nextSeen, order)
                 if (children.size <= 4 && children.all { it.kind in SCALARS || it.kind is FieldKind.Choice }) FieldKind.Compact(children)
                 else {
                     val toggle = children.firstOrNull { it.kind == FieldKind.Bool && (it.name == "show" || it.name == "visible") }

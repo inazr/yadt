@@ -22,7 +22,7 @@ import org.yaml.snakeyaml.Yaml
 
 /**
  * What the Design tab reads from the resolved dct install, cached until the schema changes. The
- * schema and the palettes are loaded on a background coroutine (they are file IO plus a parse);
+ * schema, the palettes and the field order are loaded on a background coroutine (they are file IO plus a parse);
  * [schema] never blocks and reports [Schema.Loading] until the load is done.
  */
 @Service(Service.Level.PROJECT)
@@ -42,7 +42,7 @@ class DesignData(private val project: Project, private val cs: CoroutineScope) {
         fun onDesignDataReady()
     }
 
-    private class Loaded(val path: Path, val node: JsonNode?, val palettes: DctPalettes)
+    private class Loaded(val path: Path, val node: JsonNode?, val palettes: DctPalettes, val order: DctFieldOrder)
 
     private class Meta(val stamps: List<Pair<String, Long>>, val docs: List<Map<String, Any?>>)
 
@@ -72,6 +72,9 @@ class DesignData(private val project: Project, private val cs: CoroutineScope) {
     /** The palettes of the loaded schema; empty while the load runs or when dct has none. */
     fun palettes(): DctPalettes = loaded?.palettes ?: DctPalettes.EMPTY
 
+    /** dct's declared field order of the loaded schema; none while the load runs or when dct has none. */
+    fun fieldOrder(): DctFieldOrder = loaded?.order ?: DctFieldOrder.EMPTY
+
     /** `meta.yml`/`meta.yaml` from `charts/` down to the board's directory, outermost first. */
     fun metaDocs(board: VirtualFile): List<Map<String, Any?>> {
         val files = metaFiles(board)
@@ -97,8 +100,10 @@ class DesignData(private val project: Project, private val cs: CoroutineScope) {
         loading = path
         cs.launch(Dispatchers.IO) {
             val node = runCatching { jsonMapper.readTree(Files.readString(path)) }.getOrNull()
-            val palettes = DctSchemaResolver.getInstance(project).dctPackageDir?.let(DctPalettes::load) ?: DctPalettes.EMPTY
-            loaded = Loaded(path, node, palettes)
+            val packageDir = DctSchemaResolver.getInstance(project).dctPackageDir
+            val palettes = packageDir?.let(DctPalettes::load) ?: DctPalettes.EMPTY
+            val order = packageDir?.let(DctFieldOrder::load) ?: DctFieldOrder.EMPTY
+            loaded = Loaded(path, node, palettes, order)
             loading = null
             ApplicationManager.getApplication().invokeLater(
                 { if (!project.isDisposed) project.messageBus.syncPublisher(TOPIC).onDesignDataReady() },

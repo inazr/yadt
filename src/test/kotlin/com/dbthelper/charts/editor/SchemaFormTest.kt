@@ -46,24 +46,36 @@ class SchemaFormTest {
         """,
     )
 
-    private fun Form.field(name: String) = (encoding + general + sections).first { it.name == name }
+    private fun Form.field(name: String) = groups.flatMap { it.fields }.first { it.name == name }
+
+    private fun Form.group(title: String) = groups.first { it.title == title }
+
+    private fun Form.names() = groups.associate { it.title to it.fields.map(FormField::name) }
 
     @Test
-    fun `chart header, encoding and general fields`() {
+    fun `chart header and groups`() {
         val form = SchemaForm.forChart(schema, "donut")
         assertEquals("Donut Chart", form.title)
         assertEquals("pie", form.family)
-        assertEquals(listOf("theta", "color"), form.encoding.map { it.name })
-        assertEquals(listOf("x_label", "title", "height", "tags"), form.general.map { it.name })
+        assertEquals(
+            mapOf(
+                "Content" to listOf("title"),
+                "Encoding" to listOf("theta", "color", "x_label"),
+                "Size" to listOf("height"),
+                "Style" to listOf("background", "size", "total"),
+                "Advanced" to listOf("tags"),
+            ),
+            form.names(),
+        )
+        assertEquals(listOf("Content", "Encoding"), form.groups.filter { it.expanded }.map { it.title })
         assertEquals(FieldKind.Text, form.field("x_label").kind)
         assertEquals(FieldKind.Number, form.field("height").kind)
         assertTrue(form.field("tags").kind is FieldKind.Unsupported)
     }
 
     @Test
-    fun `sections, compact rows, colours and toggles`() {
-        val style = SchemaForm.forChart(schema, "pie").field("style").kind as FieldKind.Section
-        val (background, size, total) = style.children
+    fun `the Style group holds the style section's fields, compact rows, colours and toggles`() {
+        val (background, size, total) = SchemaForm.forChart(schema, "pie").group("Style").fields
         assertEquals(FieldKind.Color, background.kind)
         assertEquals(listOf("style", "background"), background.path)
         assertEquals(listOf("width", "height"), (size.kind as FieldKind.Compact).children.map { it.name })
@@ -77,15 +89,40 @@ class SchemaFormTest {
         val form = SchemaForm.forBoard(schema)
         assertEquals("Board", form.title)
         assertNull(form.family)
-        assertEquals(listOf("title", "theme"), form.general.map { it.name })
+        assertEquals(mapOf("Content" to listOf("title"), "Appearance" to listOf("theme", "style")), form.names())
+        assertEquals(listOf("Content"), form.groups.filter { it.expanded }.map { it.title })
         val style = form.field("style").kind as FieldKind.Section
         assertTrue(style.children.first { it.name == "loop" }.kind is FieldKind.Unsupported)
         assertEquals("Max width", SchemaForm.label("max_width"))
     }
 
     @Test
+    fun `fields follow dct's declared order, nested definitions included`() {
+        val order = DctFieldOrder.parse(
+            """
+            ## PieChart
+            | `height` |
+            | `color` |
+            | `theta` |
+            ## PieStyle
+            | `total` |
+            | `background` |
+            """.trimIndent(),
+        )
+        val form = SchemaForm.forChart(schema, "pie", order)
+        assertEquals(listOf("color", "theta", "x_label"), form.group("Encoding").fields.map { it.name })
+        assertEquals(listOf("total", "background", "size"), form.group("Style").fields.map { it.name })
+    }
+
+    @Test
+    fun `a field no group names lands in Advanced`() {
+        val extra = jsonMapper.readTree("""{"properties": {"title": {"type": "string"}, "brand_new": {"type": "string"}}}""")
+        assertEquals(mapOf("Content" to listOf("title"), "Advanced" to listOf("brand_new")), SchemaForm.forBoard(extra).names())
+    }
+
+    @Test
     fun `an unknown chart type gets the fields all types share`() {
-        assertEquals(listOf("title"), SchemaForm.forChart(schema, null).general.map { it.name })
+        assertEquals(mapOf("Content" to listOf("title")), SchemaForm.forChart(schema, null).names())
     }
 
     @Test
