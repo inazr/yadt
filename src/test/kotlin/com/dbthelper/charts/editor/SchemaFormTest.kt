@@ -26,6 +26,7 @@ class SchemaFormTest {
               "title": {"type": "string"},
               "height": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
               "tags": {"type": "array"},
+              "layers": {"type": "array", "items": {"${d}ref": "#/${d}defs/Size"}},
               "style": {"${d}ref": "#/${d}defs/PieStyle"}
            }},
            "PointMapChart": {"additionalProperties": false, "properties": {
@@ -63,14 +64,15 @@ class SchemaFormTest {
                 "Encoding" to listOf("theta", "color", "x_label"),
                 "Size" to listOf("height"),
                 "Style" to listOf("background", "size", "total"),
-                "Advanced" to listOf("tags"),
+                "Advanced" to listOf("tags", "layers"),
             ),
             form.names(),
         )
         assertEquals(listOf("Content", "Encoding"), form.groups.filter { it.expanded }.map { it.title })
         assertEquals(FieldKind.Text, form.field("x_label").kind)
         assertEquals(FieldKind.Number, form.field("height").kind)
-        assertTrue(form.field("tags").kind is FieldKind.Unsupported)
+        assertEquals(FieldKind.TextList, form.field("tags").kind)
+        assertTrue(form.field("layers").kind is FieldKind.Unsupported)
     }
 
     @Test

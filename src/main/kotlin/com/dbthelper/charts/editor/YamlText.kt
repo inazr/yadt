@@ -1,6 +1,6 @@
 package com.dbthelper.charts.editor
 
-/** Pure text for Design edits: YAML scalar quoting and a nested key path to insert. */
+/** Pure text for Design edits: YAML scalar quoting, flow lists and a nested key path to insert. */
 object YamlText {
 
     private val PLAIN = Regex("""[A-Za-z0-9_\-.\[\]\s]*[A-Za-z0-9_\-.\]]""")
@@ -14,11 +14,21 @@ object YamlText {
         if (value.isNotEmpty() && value.trim() == value && value.first() !in LEADING_INDICATORS &&
             !value.contains(": ") && !value.contains(" #") && PLAIN.matches(value)
         ) value
-        else "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+        else quoted(value)
 
-    fun nested(keys: List<String>, value: String, indent: Int, step: Int): String =
+    /** The items of a comma-separated list field; blank items are dropped. */
+    fun items(text: String): List<String> = text.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
+    /** A flow sequence (`[a, b]`); brackets end a flow item, so items holding one are quoted. */
+    fun list(items: List<String>): String =
+        items.joinToString(", ", "[", "]") { if (it.any { c -> c in "[]{}" }) quoted(it) else scalar(it) }
+
+    /** [rendered] is the value's YAML text, e.g. from [scalar] or [list]. */
+    fun nested(keys: List<String>, rendered: String, indent: Int, step: Int): String =
         keys.mapIndexed { level, key ->
             val pad = if (level == 0) "" else " ".repeat(indent + (level - 1) * step)
-            if (level == keys.lastIndex) "$pad$key: ${scalar(value)}" else "$pad$key:"
+            if (level == keys.lastIndex) "$pad$key: $rendered" else "$pad$key:"
         }.joinToString("\n")
+
+    private fun quoted(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 }

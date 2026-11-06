@@ -6,6 +6,7 @@ import org.jetbrains.yaml.psi.YAMLFile
 import org.jetbrains.yaml.psi.YAMLKeyValue
 import org.jetbrains.yaml.psi.YAMLMapping
 import org.jetbrains.yaml.psi.YAMLScalar
+import org.jetbrains.yaml.psi.YAMLSequence
 
 sealed interface Target {
     val mapping: YAMLMapping
@@ -44,6 +45,14 @@ object BoardTargets {
 
     fun valueText(mapping: YAMLMapping, path: List<String>): String? =
         keyValue(mapping, path)?.value?.let { (it as? YAMLScalar)?.textValue ?: it.text }
+
+    /** A list's items as text; a single scalar (`y: revenue`) is a one-item list. */
+    fun valueItems(mapping: YAMLMapping, path: List<String>): List<String>? =
+        when (val value = keyValue(mapping, path)?.value) {
+            null -> null
+            is YAMLSequence -> value.items.map { item -> item.value.let { (it as? YAMLScalar)?.textValue ?: it?.text.orEmpty() } }
+            else -> listOf((value as? YAMLScalar)?.textValue ?: value.text)
+        }
 
     fun keyOffset(mapping: YAMLMapping, path: List<String>): Int? = keyValue(mapping, path)?.key?.textRange?.startOffset
 }

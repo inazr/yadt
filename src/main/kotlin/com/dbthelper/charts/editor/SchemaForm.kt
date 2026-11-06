@@ -8,6 +8,8 @@ sealed interface FieldKind {
     data object Bool : FieldKind
     data object Color : FieldKind
     data object Column : FieldKind
+    /** A list of plain values (`tags`, `domain`, …), edited as comma-separated text. */
+    data object TextList : FieldKind
     data class Choice(val values: List<String>) : FieldKind
     data class Compact(val children: List<FormField>) : FieldKind
     data class Section(val children: List<FormField>, val toggle: FormField?) : FieldKind
@@ -132,7 +134,7 @@ object SchemaForm {
             n.has("enum") -> FieldKind.Choice(n.path("enum").map { it.asText() })
             type == "boolean" -> FieldKind.Bool
             type == "integer" || type == "number" -> FieldKind.Number
-            type == "array" -> FieldKind.Unsupported("list")
+            type == "array" -> if (plainItems(schema, n.path("items"))) FieldKind.TextList else FieldKind.Unsupported("list")
             type == "string" && (description.startsWith("column") || "column name" in description) -> FieldKind.Column
             type == "string" && (COLOR_NAME.containsMatchIn(name) || "color" in description) -> FieldKind.Color
             type == "string" -> FieldKind.Text
@@ -146,6 +148,13 @@ object SchemaForm {
             }
             else -> FieldKind.Unsupported("unknown")
         }
+    }
+
+    /** dct leaves most lists' items untyped; a list of objects (`rows`, `layers`) is no text field. */
+    private fun plainItems(schema: JsonNode, items: JsonNode): Boolean {
+        if (items.isMissingNode || items.isEmpty) return true
+        val item = ref(schema.path("\$defs"), items)?.second ?: items
+        return item.has("enum") || item.path("type").asText() in setOf("string", "integer", "number", "boolean")
     }
 
     private fun ref(defs: JsonNode, node: JsonNode): Pair<String, JsonNode>? {

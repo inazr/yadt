@@ -297,6 +297,7 @@ class DesignPanel(
             }
             FieldKind.Number -> cell(textInput(f, ctx, value, placeholder, numeric = true))
             FieldKind.Text -> cell(textInput(f, ctx, value, placeholder, numeric = false))
+            FieldKind.TextList -> cell(textInput(f, ctx, value, placeholder.ifEmpty { "a, b, …" }, numeric = false))
             is FieldKind.Unsupported -> link("edit in Code") {
                 WriteIntentReadAction.run(Runnable {
                     onEditInCode(BoardTargets.keyOffset(ctx.mapping, f.path) ?: ctx.mapping.textRange.startOffset)
@@ -306,15 +307,19 @@ class DesignPanel(
         }
     }
 
-    private fun value(ctx: Context, f: FormField): String? =
-        ctx.mapping.takeIf { it.isValid }?.let { BoardTargets.valueText(it, f.path) }
+    /** A list field reads as its comma-separated items. */
+    private fun value(ctx: Context, f: FormField): String? {
+        val mapping = ctx.mapping.takeIf { it.isValid } ?: return null
+        return if (f.kind == FieldKind.TextList) BoardTargets.valueItems(mapping, f.path)?.joinToString(", ")
+        else BoardTargets.valueText(mapping, f.path)
+    }
 
     private fun checkBox(f: FormField, ctx: Context, text: String?) = JBCheckBox(text).apply {
         toolTipText = f.help.ifBlank { null }
         val read = { value(ctx, f)?.toBooleanStrictOrNull() ?: ctx.inherited(f)?.toBooleanStrictOrNull() ?: (f.name == "show" || f.name == "visible") }
         isSelected = read()
         ctx.updaters += { isSelected = read() }
-        addActionListener { if (!updating) write(ctx, f.path, isSelected.toString()) }
+        addActionListener { if (!updating) write(ctx, f, isSelected.toString()) }
     }
 
     private fun textInput(f: FormField, ctx: Context, value: String?, placeholder: String, numeric: Boolean): JBTextField =
@@ -327,7 +332,7 @@ class DesignPanel(
                 val text = text.trim()
                 val invalid = numeric && text.isNotEmpty() && text.toDoubleOrNull() == null
                 foreground = if (invalid) JBColor.RED else normal
-                if (!invalid && text != committed && write(ctx, f.path, text)) committed = text
+                if (!invalid && text != committed && write(ctx, f, text)) committed = text
             }
             ctx.updaters += {
                 val fresh = value(ctx, f).orEmpty()
@@ -358,7 +363,7 @@ class DesignPanel(
             addActionListener {
                 if (updating) return@addActionListener
                 val selected = (selectedItem as? String)?.trim() ?: return@addActionListener
-                if (selected != committed && write(ctx, f.path, selected)) committed = selected
+                if (selected != committed && write(ctx, f, selected)) committed = selected
             }
         }
 
@@ -370,7 +375,7 @@ class DesignPanel(
         }
         read()
         ctx.updaters += read
-        addActionListener { ColorPickerPopup.show(this, ctx.palettes, ctx.theme) { token -> write(ctx, f.path, token) } }
+        addActionListener { ColorPickerPopup.show(this, ctx.palettes, ctx.theme) { token -> write(ctx, f, token) } }
     }
 
     private fun queryColumns(yaml: YAMLFile, chart: Target.Chart): List<String> {
@@ -387,18 +392,22 @@ class DesignPanel(
      * on the path), so the field keeps the value as uncommitted.
      */
     /** `run`, not `compute`: `compute`'s signature changed after 251, a NoSuchMethodError on 262. */
-    private fun write(ctx: Context, path: List<String>, value: String): Boolean {
+    private fun write(ctx: Context, f: FormField, value: String): Boolean {
         var written = false
-        WriteIntentReadAction.run(Runnable { written = writeLocked(ctx, path, value) })
+        WriteIntentReadAction.run(Runnable { written = writeLocked(ctx, f, value) })
         return written
     }
 
-    private fun writeLocked(ctx: Context, path: List<String>, value: String): Boolean {
+    private fun writeLocked(ctx: Context, f: FormField, value: String): Boolean {
         val mapping = ctx.mapping.takeIf { it.isValid }
             ?: yamlFile()?.let(BoardTargets::targets)?.firstOrNull { it.identity() == ctx.id }?.mapping?.also { ctx.mapping = it }
             ?: return false
-        return if (value.isEmpty()) YamlValueWriter.remove(project, mapping, path)
-        else YamlValueWriter.set(project, mapping, path, value)
+        val items = if (f.kind == FieldKind.TextList) YamlText.items(value) else null
+        return when {
+            value.isEmpty() || items?.isEmpty() == true -> YamlValueWriter.remove(project, mapping, f.path)
+            items != null -> YamlValueWriter.setList(project, mapping, f.path, items)
+            else -> YamlValueWriter.set(project, mapping, f.path, value)
+        }
     }
 
     private companion object {

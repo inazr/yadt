@@ -27,4 +27,13 @@ class YamlTextTest {
         assertEquals("style:\n    color:\n      static: category[2]", YamlText.nested(listOf("style", "color", "static"), "category[2]", indent = 4, step = 2))
         assertEquals("title: Hi", YamlText.nested(listOf("title"), "Hi", indent = 0, step = 2))
     }
+
+    @Test
+    fun `a comma-separated list becomes a flow sequence`() {
+        assertEquals(listOf("finance", "q1"), YamlText.items(" finance, ,q1 "))
+        assertEquals(emptyList<String>(), YamlText.items(" , "))
+        assertEquals("[finance, 4, \"#fff\"]", YamlText.list(listOf("finance", "4", "#fff")))
+        // Brackets are plain in a block scalar but end a flow sequence.
+        assertEquals("[\"category[2]\"]", YamlText.list(listOf("category[2]")))
+    }
 }

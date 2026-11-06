@@ -7,6 +7,7 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.application.options.CodeStyle
 import org.jetbrains.yaml.psi.YAMLMapping
+import org.jetbrains.yaml.psi.YAMLSequence
 
 /**
  * Writes Design edits into the board document as text (so comments and formatting elsewhere stay
@@ -19,16 +20,36 @@ object YamlValueWriter {
     /** Returns false, editing nothing, when [path] runs through a flow mapping (see [flowMappingOnPath]). */
     fun set(project: Project, root: YAMLMapping, path: List<String>, value: String): Boolean {
         if (flowMappingOnPath(root, path)) return false
+        edit(project, root) { document -> put(document, root, path, YamlText.scalar(value)) }
+        return true
+    }
+
+    /**
+     * Writes [items] as a list: a block list (`- a` lines) stays one, anything else becomes `[a, b]`.
+     * Returns false, editing nothing, when [path] runs through a flow mapping (see [flowMappingOnPath]).
+     */
+    fun setList(project: Project, root: YAMLMapping, path: List<String>, items: List<String>): Boolean {
+        if (flowMappingOnPath(root, path)) return false
         edit(project, root) { document ->
-            val existing = BoardTargets.keyValue(root, path)
-            val existingValue = existing?.value
-            when {
-                existingValue != null -> document.replaceString(existingValue.textRange.startOffset, existingValue.textRange.endOffset, YamlText.scalar(value))
-                existing != null -> document.insertString(existing.textRange.endOffset, " " + YamlText.scalar(value))
-                else -> insertPath(document, root, path, value)
+            val block = (BoardTargets.keyValue(root, path)?.value as? YAMLSequence)?.takeUnless { it.text.startsWith("[") }
+            if (block == null) put(document, root, path, YamlText.list(items))
+            else {
+                val separator = "\n" + " ".repeat(column(document, block))
+                document.replaceString(block.textRange.startOffset, block.textRange.endOffset, items.joinToString(separator) { "- " + YamlText.scalar(it) })
             }
         }
         return true
+    }
+
+    /** Sets [path] to the YAML text [rendered], creating missing keys. */
+    private fun put(document: Document, root: YAMLMapping, path: List<String>, rendered: String) {
+        val existing = BoardTargets.keyValue(root, path)
+        val existingValue = existing?.value
+        when {
+            existingValue != null -> document.replaceString(existingValue.textRange.startOffset, existingValue.textRange.endOffset, rendered)
+            existing != null -> document.insertString(existing.textRange.endOffset, " $rendered")
+            else -> insertPath(document, root, path, rendered)
+        }
     }
 
     /** Returns false, editing nothing, when [path] runs through a flow mapping (see [flowMappingOnPath]). */
@@ -79,10 +100,10 @@ object YamlValueWriter {
      * here always know the real column of that first key, so this converts "real column of the
      * first key" into the `indent` argument `nested` expects.
      */
-    private fun nestedFrom(firstKeyColumn: Int, keys: List<String>, value: String, step: Int): String =
-        YamlText.nested(keys, value, firstKeyColumn + step, step)
+    private fun nestedFrom(firstKeyColumn: Int, keys: List<String>, rendered: String, step: Int): String =
+        YamlText.nested(keys, rendered, firstKeyColumn + step, step)
 
-    private fun insertPath(document: Document, root: YAMLMapping, path: List<String>, value: String) {
+    private fun insertPath(document: Document, root: YAMLMapping, path: List<String>, rendered: String) {
         val step = CodeStyle.getIndentSize(root.containingFile).takeIf { it > 0 } ?: 2
         var mapping = root
         var depth = 0
@@ -102,11 +123,11 @@ object YamlValueWriter {
             if (nextValue == null || nextValue.text.isBlank()) {
                 // Bare key: insert the remaining path as its children, one step further in.
                 val childColumn = keyColumn + step
-                val text = nestedFrom(childColumn, rest, value, step)
+                val text = nestedFrom(childColumn, rest, rendered, step)
                 document.insertString(next.textRange.endOffset, "\n" + " ".repeat(childColumn) + text)
             } else {
                 // Non-mapping value: replace the whole `key: scalar` with `key:` plus the nested rest.
-                val text = nestedFrom(keyColumn, listOf(path[depth]) + rest, value, step)
+                val text = nestedFrom(keyColumn, listOf(path[depth]) + rest, rendered, step)
                 document.replaceString(next.textRange.startOffset, next.textRange.endOffset, text)
             }
             return
@@ -114,7 +135,7 @@ object YamlValueWriter {
         val anchor = mapping.keyValues.lastOrNull()
         val indent = anchor?.let { column(document, it) }
             ?: (column(document, mapping.parent ?: mapping) + step)
-        val text = nestedFrom(indent, path.drop(depth), value, step)
+        val text = nestedFrom(indent, path.drop(depth), rendered, step)
         val insertAt = (anchor ?: mapping).textRange.endOffset
         document.insertString(insertAt, "\n" + " ".repeat(indent) + text)
     }
