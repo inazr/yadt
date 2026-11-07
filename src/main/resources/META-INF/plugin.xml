@@ -3,9 +3,10 @@
     <name>YADT — Yet Another dbt Tool</name>
     <vendor email="yadt@stephan-ohm.com" url="https://github.com/inazr/yadt">inazr</vendor>
     <description><![CDATA[
-<p><b>YADT</b> (Yet Another dbt Tool) adds lineage visualization, code intelligence, and a
-command runner for <a href="https://www.getdbt.com/">dbt</a> projects to JetBrains IDEs —
-IntelliJ IDEA, PyCharm, DataSpell, and other IntelliJ-Platform IDEs. It reads your project's
+<p><b>YADT</b> (Yet Another dbt Tool) brings <a href="https://www.getdbt.com/">dbt</a> lineage,
+code intelligence, a command runner, and <a href="https://dbtcharts.com">dbt Charts</a> board editing
+with a live preview to JetBrains IDEs — IntelliJ IDEA, PyCharm, DataSpell, and other
+IntelliJ-Platform IDEs. It reads your project's
 compiled <code>manifest.json</code>, so it works with dbt Core and detects and supports the
 dbt Fusion engine and the dbt Cloud CLI.</p>
 
@@ -24,16 +25,6 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
 <h3>Docs sidebar</h3>
 <p>Columns, tests, SQL, and metadata for the selected model, side by side with the lineage graph.</p>
 
-<h3>Code intelligence</h3>
-<ul>
-  <li><b>Autocompletion</b> — <code>ref()</code>, <code>source()</code>, <code>macro()</code> suggestions with descriptions</li>
-  <li><b>Go to definition</b> — Ctrl/Cmd+Click a <code>ref()</code> / <code>source()</code> to jump to the file</li>
-  <li><b>Documentation on hover</b> — columns, materialization, tags, descriptions</li>
-  <li><b>Annotations</b> — unresolved <code>ref()</code> / <code>source()</code> highlighted as warnings</li>
-  <li><b>Potentially terminal columns</b> — gutter hint on model output columns that no downstream model or exposure reads</li>
-  <li>Works in .sql, .jinja, and .jinja2 files, and in dbt Charts boards (see below)</li>
-</ul>
-
 <h3>dbt Charts boards</h3>
 <ul>
   <li>Completion, hover docs and structural errors for <a href="https://dbtcharts.com">dbt Charts</a> board YAML, from the schema of your installed <code>dct</code> (or an opt-in verified download)</li>
@@ -42,6 +33,17 @@ dbt Fusion engine and the dbt Cloud CLI.</p>
   <li><b>Design tab</b> — a form for the board or a chart, generated from dct's schema, with column dropdowns, inherited theme values and a token colour picker; changes are written into the YAML</li>
   <li><b>Query preview</b> — a run icon on each board query shows its rows in the Query tab, via <code>dct query</code>, with fields for the board's variables</li>
   <li><b>Chart type hints</b> — chart types that don't fit a chart's fields are greyed out in completion, with the reason</li>
+</ul>
+
+<h3>Code intelligence</h3>
+<ul>
+  <li><b>Autocompletion</b> — <code>ref()</code>, <code>source()</code>, <code>macro()</code> suggestions with descriptions</li>
+  <li><b>Column completion</b> — after a table name or alias (<code>o.</code>), that table's columns with type and description, from the manifest and catalog</li>
+  <li><b>Go to definition</b> — Ctrl/Cmd+Click a <code>ref()</code> / <code>source()</code> to jump to the file</li>
+  <li><b>Documentation on hover</b> — columns, materialization, tags, descriptions</li>
+  <li><b>Annotations</b> — unresolved <code>ref()</code> / <code>source()</code> highlighted as warnings</li>
+  <li><b>Potentially terminal columns</b> — gutter hint on model output columns that no downstream model or exposure reads</li>
+  <li>Works in .sql, .jinja, and .jinja2 files, and in dbt Charts boards (see above)</li>
 </ul>
 
 <h3>Runner</h3>
