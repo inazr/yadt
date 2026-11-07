@@ -46,8 +46,16 @@ class ExecutableLocatorTest {
     fun `project venvs are looked up in a fixed order`(@TempDir root: Path) {
         assertEquals(
             listOf(".venv", "venv", ".env").map { root.resolve(it).resolve("bin").resolve("dct") },
-            ExecutableLocator.projectVenvs(root, "dct"),
+            ExecutableLocator.projectVenvs(root, "dct", windows = false),
         )
         assertEquals(emptyList<Path>(), ExecutableLocator.projectVenvs(null, "dct"))
+    }
+
+    @Test
+    fun `windows venvs keep executables in Scripts with exe`(@TempDir root: Path) {
+        assertEquals(
+            root.resolve(".venv").resolve("Scripts").resolve("dct.exe"),
+            ExecutableLocator.projectVenvs(root, "dct", windows = true).first(),
+        )
     }
 }

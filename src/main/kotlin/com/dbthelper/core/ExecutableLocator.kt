@@ -23,9 +23,15 @@ object ExecutableLocator {
             ?: findOnPath(name, System.getenv("PATH"), windowsExtensions())
     }
 
-    /** [name] in the usual project virtualenvs below [root], for [find]'s `preferred`; none without a root. */
-    fun projectVenvs(root: Path?, name: String): List<Path> =
-        if (root == null) emptyList() else listOf(".venv", "venv", ".env").map { root.resolve(it).resolve("bin").resolve(name) }
+    /**
+     * [name] in the usual project virtualenvs below [root] (uv's default is `.venv`), for [find]'s
+     * `preferred`; none without a root. Windows venvs keep executables in `Scripts\<name>.exe`.
+     */
+    fun projectVenvs(root: Path?, name: String, windows: Boolean = isWindows()): List<Path> {
+        if (root == null) return emptyList()
+        val executable = if (windows) Path.of("Scripts", "$name.exe") else Path.of("bin", name)
+        return listOf(".venv", "venv", ".env").map { root.resolve(it).resolve(executable) }
+    }
 
     /**
      * The first executable [name] in the directories of [pathValue]. With [extensions] (Windows),
@@ -43,10 +49,12 @@ object ExecutableLocator {
 
     /** Executable extensions from PATHEXT on Windows (e.g. `.exe`); empty elsewhere. */
     private fun windowsExtensions(): List<String> {
-        if (!System.getProperty("os.name").startsWith("Windows")) return emptyList()
+        if (!isWindows()) return emptyList()
         return (System.getenv("PATHEXT") ?: ".COM;.EXE;.BAT;.CMD")
             .split(';').filter { it.isNotBlank() }.map { it.lowercase() }
     }
+
+    private fun isWindows(): Boolean = System.getProperty("os.name").startsWith("Windows")
 
     private fun isExecutableFile(path: Path): Boolean = Files.isRegularFile(path) && Files.isExecutable(path)
 }

@@ -2,6 +2,7 @@ package com.dbthelper.charts
 
 import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.ExecutableLocator
+import com.dbthelper.core.ProjectVenvs
 import com.dbthelper.settings.DbtHelperSettings
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
@@ -11,12 +12,12 @@ import java.nio.file.Path
 /**
  * The user's `dct`: the configured path, else the dbt project's own venv (like dbt), else
  * auto-detected; null if there is no such file. A global `dct` (e.g. a uv tool) can be older than
- * the project's pinned dbt-charts and reject valid boards.
+ * the project's pinned dbt-charts and reject valid boards. Venvs count only in trusted projects.
  */
 object DctExecutable {
     fun find(project: Project): Path? {
         val configured = DbtHelperSettings.getInstance(project).state.dctExecutablePath
-        val venvs = projectRoots(project).flatMap { ExecutableLocator.projectVenvs(it, "dct") }.distinct()
+        val venvs = ProjectVenvs.find(project, projectRoots(project), "dct")
         return ExecutableLocator.find("dct", configured, venvs)?.takeIf { Files.isRegularFile(it) }
     }
 

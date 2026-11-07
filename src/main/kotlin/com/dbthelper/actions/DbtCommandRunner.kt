@@ -4,6 +4,7 @@ import java.nio.file.Path
 import com.dbthelper.core.ExecutableLocator
 import com.dbthelper.core.DbtProjectLocator
 import com.dbthelper.core.ManifestService
+import com.dbthelper.core.ProjectVenvs
 import com.dbthelper.settings.DbtHelperSettings
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -24,9 +25,9 @@ class DbtCommandRunner(private val project: Project) {
     }
 
     fun findDbtExecutable(): String {
-        val root = DbtProjectLocator.getInstance(project).findProjectRoot()?.path?.let { Path.of(it) }
+        val roots = listOfNotNull(DbtProjectLocator.getInstance(project).findProjectRoot()?.path).map { Path.of(it) }
         val configured = DbtHelperSettings.getInstance(project).state.dbtExecutablePath
-        return ExecutableLocator.find("dbt", configured, ExecutableLocator.projectVenvs(root, "dbt"))?.toString() ?: "dbt"
+        return ExecutableLocator.find("dbt", configured, ProjectVenvs.find(project, roots, "dbt"))?.toString() ?: "dbt"
     }
 
     /**

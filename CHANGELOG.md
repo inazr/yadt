@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-07
+
+- Security: YADT now runs `dbt` and `dct` from a project's virtualenv only if you trusted the project when opening it. In an untrusted project it uses the path from the settings, your user install dirs or `PATH`, so a cloned repository can't make YADT run its own `dbt` or `dct`
+- Windows: `dbt` and `dct` are now found in a project's virtualenv (`.venv\Scripts`, e.g. as created by `uv`); before, only the macOS/Linux layout (`.venv/bin`) was checked
+
 ## [0.8.1] - 2026-11-07
 
 - dbt Charts: the preview, the Query tab and the board schema now use the project's own `dct` (`.venv`, `venv` or `.env` in the dbt project or the IDE project) before a global one, as YADT already did for `dbt`. A global `dct` older than the project's dbt-charts rejected valid boards (e.g. "Unknown field 'formats'"). A `dct` path set in the settings still wins
@@ -127,7 +132,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/inazr/yadt/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/inazr/yadt/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/inazr/yadt/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/inazr/yadt/compare/v0.7.0...v0.7.1
