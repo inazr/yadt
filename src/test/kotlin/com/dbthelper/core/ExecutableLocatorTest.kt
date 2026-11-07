@@ -34,4 +34,20 @@ class ExecutableLocatorTest {
         assertNull(ExecutableLocator.findOnPath("dbt", path(a), emptyList()))
         assertNull(ExecutableLocator.findOnPath("dbt", null, emptyList()))
     }
+
+    @Test
+    fun `a project venv wins over user install dirs and PATH`(@TempDir root: Path) {
+        val bin = root.resolve(".venv/bin").toFile().apply { mkdirs() }.toPath()
+        val venvDct = file(bin, "dct")
+        assertEquals(venvDct, ExecutableLocator.find("dct", "", ExecutableLocator.projectVenvs(root, "dct")))
+    }
+
+    @Test
+    fun `project venvs are looked up in a fixed order`(@TempDir root: Path) {
+        assertEquals(
+            listOf(".venv", "venv", ".env").map { root.resolve(it).resolve("bin").resolve("dct") },
+            ExecutableLocator.projectVenvs(root, "dct"),
+        )
+        assertEquals(emptyList<Path>(), ExecutableLocator.projectVenvs(null, "dct"))
+    }
 }

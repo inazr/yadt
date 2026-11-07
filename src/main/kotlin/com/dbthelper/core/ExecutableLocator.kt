@@ -23,6 +23,10 @@ object ExecutableLocator {
             ?: findOnPath(name, System.getenv("PATH"), windowsExtensions())
     }
 
+    /** [name] in the usual project virtualenvs below [root], for [find]'s `preferred`; none without a root. */
+    fun projectVenvs(root: Path?, name: String): List<Path> =
+        if (root == null) emptyList() else listOf(".venv", "venv", ".env").map { root.resolve(it).resolve("bin").resolve(name) }
+
     /**
      * The first executable [name] in the directories of [pathValue]. With [extensions] (Windows),
      * only `name + extension` is tried, as a shell would. Hand-rolled because the platform's

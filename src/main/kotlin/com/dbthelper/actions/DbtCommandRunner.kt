@@ -24,10 +24,9 @@ class DbtCommandRunner(private val project: Project) {
     }
 
     fun findDbtExecutable(): String {
-        val root = DbtProjectLocator.getInstance(project).findProjectRoot()?.path
-        val projectVenvs = if (root == null) emptyList() else listOf(".venv", "venv", ".env").map { Path.of(root, it, "bin", "dbt") }
+        val root = DbtProjectLocator.getInstance(project).findProjectRoot()?.path?.let { Path.of(it) }
         val configured = DbtHelperSettings.getInstance(project).state.dbtExecutablePath
-        return ExecutableLocator.find("dbt", configured, projectVenvs)?.toString() ?: "dbt"
+        return ExecutableLocator.find("dbt", configured, ExecutableLocator.projectVenvs(root, "dbt"))?.toString() ?: "dbt"
     }
 
     /**

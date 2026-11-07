@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-07
+
+- dbt Charts: the preview, the Query tab and the board schema now use the project's own `dct` (`.venv`, `venv` or `.env` in the dbt project or the IDE project) before a global one, as YADT already did for `dbt`. A global `dct` older than the project's dbt-charts rejected valid boards (e.g. "Unknown field 'formats'"). A `dct` path set in the settings still wins
+
 ## [0.8.0] - 2026-11-07
 
 - New: **dbt Charts query preview.** A run icon next to each entry under a board's `queries:` opens the new **Query** tab in the YADT tool window and shows the rows the query returns, without rendering the board. It runs `dct query`, with one input field per board variable (prefilled with its `default:`) and a row limit (20 by default, up to 1000). dct's errors, such as an undefined variable, are shown as dct reports them
@@ -123,7 +127,8 @@
 - Light and dark theme support for lineage graph
 - Configurable lineage depth, edge style, layout direction
 
-[Unreleased]: https://github.com/inazr/yadt/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/inazr/yadt/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/inazr/yadt/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/inazr/yadt/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/inazr/yadt/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/inazr/yadt/compare/v0.6.1...v0.7.0
